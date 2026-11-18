@@ -1,0 +1,39 @@
+{
+  "slot_parsing": {
+    "cases": 50,
+    "exact_match": 1,
+    "normalized_numeric_exact_match": 1,
+    "macro_f1": 1.0,
+    "per_slot_f1": {
+      "max_price": 1.0,
+      "max_mileage": 1.0,
+      "min_year": 1.0,
+      "body_style": 1.0,
+      "drivetrain": 1.0
+    },
+    "rule_parser": {
+      "cases": 50,
+      "exact_match": 1,
+      "normalized_numeric_exact_match": 1,
+      "macro_f1": 1.0,
+      "per_slot_f1": {
+        "max_price": 1.0,
+        "max_mileage": 1.0,
+        "min_year": 1.0,
+        "body_style": 1.0,
+        "drivetrain": 1.0
+      }
+    }
+  },
+  "shacl_conforms": true,
+  "graph_link_audit": {
+    "sampled_links": 100,
+    "labeled_links": 0,
+    "precision": null
+  },
+  "web_extraction_audit": {
+    "captured_pages": 0,
+    "audited_records": 0,
+    "field_precision": null
+  }
+}

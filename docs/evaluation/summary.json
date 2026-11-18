@@ -1,0 +1,88 @@
+{
+  "runs": 300,
+  "median_latency_seconds": 0.3375375,
+  "p95_latency_seconds": 0.695417,
+  "constraint_satisfaction": 0.7833333333333333,
+  "gold_constraint_satisfaction": 1.0,
+  "exact_match_rate": 1.0,
+  "shown_cars_meet_limits": 1.0,
+  "false_abstention_rate": 0.0,
+  "abstention_accuracy": 1.0,
+  "mean_cohort_retention": 0.7216204255319149,
+  "citation_coverage": 1.0,
+  "configurations": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+  ],
+  "by_configuration": {
+    "A": {
+      "runs": 60,
+      "median_latency_seconds": 0.1371495,
+      "p95_latency_seconds": 0.218448,
+      "constraint_satisfaction": 0.7833333333333333,
+      "gold_constraint_satisfaction": 1.0,
+      "exact_match_rate": 1.0,
+      "shown_cars_meet_limits": 1.0,
+      "false_abstention_rate": 0.0,
+      "abstention_accuracy": 1.0,
+      "mean_cohort_retention": 0.6703127659574468,
+      "citation_coverage": 1.0
+    },
+    "B": {
+      "runs": 60,
+      "median_latency_seconds": 0.44925800000000005,
+      "p95_latency_seconds": 0.673766,
+      "constraint_satisfaction": 0.7833333333333333,
+      "gold_constraint_satisfaction": 1.0,
+      "exact_match_rate": 1.0,
+      "shown_cars_meet_limits": 1.0,
+      "false_abstention_rate": 0.0,
+      "abstention_accuracy": 1.0,
+      "mean_cohort_retention": 0.6703127659574468,
+      "citation_coverage": 1.0
+    },
+    "C": {
+      "runs": 60,
+      "median_latency_seconds": 0.44888649999999997,
+      "p95_latency_seconds": 0.704448,
+      "constraint_satisfaction": 0.7833333333333333,
+      "gold_constraint_satisfaction": 1.0,
+      "exact_match_rate": 1.0,
+      "shown_cars_meet_limits": 1.0,
+      "false_abstention_rate": 0.0,
+      "abstention_accuracy": 1.0,
+      "mean_cohort_retention": 0.6703127659574468,
+      "citation_coverage": 1.0
+    },
+    "D": {
+      "runs": 60,
+      "median_latency_seconds": 0.4518845,
+      "p95_latency_seconds": 0.713076,
+      "constraint_satisfaction": 0.7833333333333333,
+      "gold_constraint_satisfaction": 1.0,
+      "exact_match_rate": 1.0,
+      "shown_cars_meet_limits": 1.0,
+      "false_abstention_rate": 0.0,
+      "abstention_accuracy": 1.0,
+      "mean_cohort_retention": 0.6703127659574468,
+      "citation_coverage": 1.0
+    },
+    "E": {
+      "runs": 60,
+      "median_latency_seconds": 0.452433,
+      "p95_latency_seconds": 0.694899,
+      "constraint_satisfaction": 0.7833333333333333,
+      "gold_constraint_satisfaction": 1.0,
+      "exact_match_rate": 1.0,
+      "shown_cars_meet_limits": 1.0,
+      "false_abstention_rate": 0.0,
+      "abstention_accuracy": 1.0,
+      "mean_cohort_retention": 0.9268510638297872,
+      "citation_coverage": 1.0
+    }
+  },
+  "human_metrics_pending": true
+}

@@ -1,0 +1,1830 @@
+{
+  "cases": 50,
+  "exact_match": 1,
+  "normalized_numeric_exact_match": 1,
+  "macro_f1": 1.0,
+  "per_slot_f1": {
+    "max_price": 1.0,
+    "max_mileage": 1.0,
+    "min_year": 1.0,
+    "body_style": 1.0,
+    "drivetrain": 1.0
+  },
+  "records": [
+    {
+      "id": "slot-01",
+      "query": "Looking for an AWD crossover 2008+ under $18.5k.",
+      "expected": {
+        "max_price": 18500,
+        "max_mileage": null,
+        "min_year": 2008,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 18500,
+        "max_mileage": null,
+        "min_year": 2008,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-02",
+      "query": "Find an all-wheel drive SUV under $18k with below 95k miles.",
+      "expected": {
+        "max_price": 18000,
+        "max_mileage": 95000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 18000,
+        "max_mileage": 95000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-03",
+      "query": "Need a 4x4 pickup at most $14,500 with under 110,000 miles.",
+      "expected": {
+        "max_price": 14500,
+        "max_mileage": 110000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 14500,
+        "max_mileage": 110000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-04",
+      "query": "Sedan 2010 or newer, budget of $12,000, under 80k miles.",
+      "expected": {
+        "max_price": 12000,
+        "max_mileage": 80000,
+        "min_year": 2010,
+        "body_style": "sedan",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 12000,
+        "max_mileage": 80000,
+        "min_year": 2010,
+        "body_style": "sedan",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-05",
+      "query": "FWD sedan after 2008, $11,500 or less, less than 90,000 miles.",
+      "expected": {
+        "max_price": 11500,
+        "max_mileage": 90000,
+        "min_year": 2008,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      },
+      "predicted": {
+        "max_price": 11500,
+        "max_mileage": 90000,
+        "min_year": 2008,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      }
+    },
+    {
+      "id": "slot-06",
+      "query": "Reliable AWD crossover at least 2009 up to $21,000 with max 75k miles.",
+      "expected": {
+        "max_price": 21000,
+        "max_mileage": 75000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 21000,
+        "max_mileage": 75000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-07",
+      "query": "Looking for a 4WD truck 2007+ no more than $19k and below 100k miles.",
+      "expected": {
+        "max_price": 19000,
+        "max_mileage": 100000,
+        "min_year": 2007,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 19000,
+        "max_mileage": 100000,
+        "min_year": 2007,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-08",
+      "query": "RWD sedan from 2011 under $24,500 with under 65,000 miles.",
+      "expected": {
+        "max_price": 24500,
+        "max_mileage": 65000,
+        "min_year": 2011,
+        "body_style": "sedan",
+        "drivetrain": "RWD"
+      },
+      "predicted": {
+        "max_price": 24500,
+        "max_mileage": 65000,
+        "min_year": 2011,
+        "body_style": "sedan",
+        "drivetrain": "RWD"
+      }
+    },
+    {
+      "id": "slot-09",
+      "query": "SUV below $9,500 with under 120k miles.",
+      "expected": {
+        "max_price": 9500,
+        "max_mileage": 120000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 9500,
+        "max_mileage": 120000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-10",
+      "query": "Pickup truck 2009 or newer under $25k for winter driving.",
+      "expected": {
+        "max_price": 25000,
+        "max_mileage": null,
+        "min_year": 2009,
+        "body_style": "truck",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 25000,
+        "max_mileage": null,
+        "min_year": 2009,
+        "body_style": "truck",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-11",
+      "query": "Four-wheel drive SUV 2008 or newer under $16,500 with under 95,000 mi.",
+      "expected": {
+        "max_price": 16500,
+        "max_mileage": 95000,
+        "min_year": 2008,
+        "body_style": "suv",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 16500,
+        "max_mileage": 95000,
+        "min_year": 2008,
+        "body_style": "suv",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-12",
+      "query": "Front-wheel drive sedan under $10k with less than 85k miles.",
+      "expected": {
+        "max_price": 10000,
+        "max_mileage": 85000,
+        "min_year": null,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      },
+      "predicted": {
+        "max_price": 10000,
+        "max_mileage": 85000,
+        "min_year": null,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      }
+    },
+    {
+      "id": "slot-13",
+      "query": "AWD sedan 2010+ at most $17,500 and up to 70,000 miles.",
+      "expected": {
+        "max_price": 17500,
+        "max_mileage": 70000,
+        "min_year": 2010,
+        "body_style": "sedan",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 17500,
+        "max_mileage": 70000,
+        "min_year": 2010,
+        "body_style": "sedan",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-14",
+      "query": "Crossover under $13.5k. with under 105k miles.",
+      "expected": {
+        "max_price": 13500,
+        "max_mileage": 105000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 13500,
+        "max_mileage": 105000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-15",
+      "query": "4x4 SUV after 2009, maximum $22,000, below 80,000 miles.",
+      "expected": {
+        "max_price": 22000,
+        "max_mileage": 80000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 22000,
+        "max_mileage": 80000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-16",
+      "query": "Rear-wheel drive pickup 2007 or newer under $15,000.",
+      "expected": {
+        "max_price": 15000,
+        "max_mileage": null,
+        "min_year": 2007,
+        "body_style": "truck",
+        "drivetrain": "RWD"
+      },
+      "predicted": {
+        "max_price": 15000,
+        "max_mileage": null,
+        "min_year": 2007,
+        "body_style": "truck",
+        "drivetrain": "RWD"
+      }
+    },
+    {
+      "id": "slot-17",
+      "query": "Budget of $8,000 for a reliable sedan under 130,000 miles.",
+      "expected": {
+        "max_price": 8000,
+        "max_mileage": 130000,
+        "min_year": null,
+        "body_style": "sedan",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 8000,
+        "max_mileage": 130000,
+        "min_year": null,
+        "body_style": "sedan",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-18",
+      "query": "All wheel drive crossover 2012 or newer under $27k with under 60k miles.",
+      "expected": {
+        "max_price": 27000,
+        "max_mileage": 60000,
+        "min_year": 2012,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 27000,
+        "max_mileage": 60000,
+        "min_year": 2012,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-19",
+      "query": "4WD pickup 2008+ with $23,000 or less and under 100,000 miles.",
+      "expected": {
+        "max_price": 23000,
+        "max_mileage": 100000,
+        "min_year": 2008,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 23000,
+        "max_mileage": 100000,
+        "min_year": 2008,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-20",
+      "query": "FWD crossover newer than 2009 below $16k and below 90k miles.",
+      "expected": {
+        "max_price": 16000,
+        "max_mileage": 90000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": "FWD"
+      },
+      "predicted": {
+        "max_price": 16000,
+        "max_mileage": 90000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": "FWD"
+      }
+    },
+    {
+      "id": "slot-21",
+      "query": "Sedan at least 2011 under $14,000 with no more than 75k miles.",
+      "expected": {
+        "max_price": 14000,
+        "max_mileage": 75000,
+        "min_year": 2011,
+        "body_style": "sedan",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 14000,
+        "max_mileage": 75000,
+        "min_year": 2011,
+        "body_style": "sedan",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-22",
+      "query": "Truck up to $29,500, 2010 or newer, under 85,000 miles.",
+      "expected": {
+        "max_price": 29500,
+        "max_mileage": 85000,
+        "min_year": 2010,
+        "body_style": "truck",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 29500,
+        "max_mileage": 85000,
+        "min_year": 2010,
+        "body_style": "truck",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-23",
+      "query": "AWD SUV under $19.5k. with strong safety and low repair costs.",
+      "expected": {
+        "max_price": 19500,
+        "max_mileage": null,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 19500,
+        "max_mileage": null,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-24",
+      "query": "4WD truck below 115k miles and at most $20,500.",
+      "expected": {
+        "max_price": 20500,
+        "max_mileage": 115000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 20500,
+        "max_mileage": 115000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-25",
+      "query": "FWD sedan 2007+ under $9k with under 110,000 miles.",
+      "expected": {
+        "max_price": 9000,
+        "max_mileage": 110000,
+        "min_year": 2007,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      },
+      "predicted": {
+        "max_price": 9000,
+        "max_mileage": 110000,
+        "min_year": 2007,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      }
+    },
+    {
+      "id": "slot-26",
+      "query": "Find an SUV 2009 and newer under $18k with under 95k miles.",
+      "expected": {
+        "max_price": 18000,
+        "max_mileage": 95000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 18000,
+        "max_mileage": 95000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-27",
+      "query": "Need a 4x4 pickup from 2010 under $26,000 with under 80,000 miles.",
+      "expected": {
+        "max_price": 26000,
+        "max_mileage": 80000,
+        "min_year": 2010,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 26000,
+        "max_mileage": 80000,
+        "min_year": 2010,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-28",
+      "query": "All-wheel drive sedan 2008+ less than $15.5k. with below 100k miles.",
+      "expected": {
+        "max_price": 15500,
+        "max_mileage": 100000,
+        "min_year": 2008,
+        "body_style": "sedan",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 15500,
+        "max_mileage": 100000,
+        "min_year": 2008,
+        "body_style": "sedan",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-29",
+      "query": "RWD truck under $17,000 with under 90k mi and good brakes.",
+      "expected": {
+        "max_price": 17000,
+        "max_mileage": 90000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "RWD"
+      },
+      "predicted": {
+        "max_price": 17000,
+        "max_mileage": 90000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "RWD"
+      }
+    },
+    {
+      "id": "slot-30",
+      "query": "Crossover 2012+ with a budget of $24,000 and under 65k miles.",
+      "expected": {
+        "max_price": 24000,
+        "max_mileage": 65000,
+        "min_year": 2012,
+        "body_style": "suv",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 24000,
+        "max_mileage": 65000,
+        "min_year": 2012,
+        "body_style": "suv",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-31",
+      "query": "FWD sedan after 2010, maximum $13,000, under 70,000 miles.",
+      "expected": {
+        "max_price": 13000,
+        "max_mileage": 70000,
+        "min_year": 2010,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      },
+      "predicted": {
+        "max_price": 13000,
+        "max_mileage": 70000,
+        "min_year": 2010,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      }
+    },
+    {
+      "id": "slot-32",
+      "query": "AWD crossover 2007 or newer under $12,500 for snowy roads.",
+      "expected": {
+        "max_price": 12500,
+        "max_mileage": null,
+        "min_year": 2007,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 12500,
+        "max_mileage": null,
+        "min_year": 2007,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-33",
+      "query": "Pickup 2008+ no more than $21,500 with under 105,000 miles.",
+      "expected": {
+        "max_price": 21500,
+        "max_mileage": 105000,
+        "min_year": 2008,
+        "body_style": "truck",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 21500,
+        "max_mileage": 105000,
+        "min_year": 2008,
+        "body_style": "truck",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-34",
+      "query": "4WD SUV under $31k with under 60,000 miles and cargo space.",
+      "expected": {
+        "max_price": 31000,
+        "max_mileage": 60000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 31000,
+        "max_mileage": 60000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-35",
+      "query": "Sedan $10,500 or less, 2008 or newer, below 95k miles.",
+      "expected": {
+        "max_price": 10500,
+        "max_mileage": 95000,
+        "min_year": 2008,
+        "body_style": "sedan",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 10500,
+        "max_mileage": 95000,
+        "min_year": 2008,
+        "body_style": "sedan",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-36",
+      "query": "RWD sedan 2009+ up to $22,500 and under 75k miles.",
+      "expected": {
+        "max_price": 22500,
+        "max_mileage": 75000,
+        "min_year": 2009,
+        "body_style": "sedan",
+        "drivetrain": "RWD"
+      },
+      "predicted": {
+        "max_price": 22500,
+        "max_mileage": 75000,
+        "min_year": 2009,
+        "body_style": "sedan",
+        "drivetrain": "RWD"
+      }
+    },
+    {
+      "id": "slot-37",
+      "query": "All-wheel drive SUV at least 2010 under $25k with below 85,000 miles.",
+      "expected": {
+        "max_price": 25000,
+        "max_mileage": 85000,
+        "min_year": 2010,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 25000,
+        "max_mileage": 85000,
+        "min_year": 2010,
+        "body_style": "suv",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-38",
+      "query": "4x4 truck 2011 or newer at most $32,000 with under 70k miles.",
+      "expected": {
+        "max_price": 32000,
+        "max_mileage": 70000,
+        "min_year": 2011,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 32000,
+        "max_mileage": 70000,
+        "min_year": 2011,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-39",
+      "query": "FWD crossover under $14,500 with under 88,000 miles.",
+      "expected": {
+        "max_price": 14500,
+        "max_mileage": 88000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": "FWD"
+      },
+      "predicted": {
+        "max_price": 14500,
+        "max_mileage": 88000,
+        "min_year": null,
+        "body_style": "suv",
+        "drivetrain": "FWD"
+      }
+    },
+    {
+      "id": "slot-40",
+      "query": "Sedan 2007 or newer under $7,500 with under 125k miles.",
+      "expected": {
+        "max_price": 7500,
+        "max_mileage": 125000,
+        "min_year": 2007,
+        "body_style": "sedan",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 7500,
+        "max_mileage": 125000,
+        "min_year": 2007,
+        "body_style": "sedan",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-41",
+      "query": "AWD pickup under $28k with less than 80,000 miles.",
+      "expected": {
+        "max_price": 28000,
+        "max_mileage": 80000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 28000,
+        "max_mileage": 80000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-42",
+      "query": "SUV 2008+ below $18.5k. with good fuel economy.",
+      "expected": {
+        "max_price": 18500,
+        "max_mileage": null,
+        "min_year": 2008,
+        "body_style": "suv",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 18500,
+        "max_mileage": null,
+        "min_year": 2008,
+        "body_style": "suv",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-43",
+      "query": "FWD sedan below 95k miles and under $11,000.",
+      "expected": {
+        "max_price": 11000,
+        "max_mileage": 95000,
+        "min_year": null,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      },
+      "predicted": {
+        "max_price": 11000,
+        "max_mileage": 95000,
+        "min_year": null,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      }
+    },
+    {
+      "id": "slot-44",
+      "query": "4WD crossover 2009 or newer with a budget of $19,000 and under 90k miles.",
+      "expected": {
+        "max_price": 19000,
+        "max_mileage": 90000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 19000,
+        "max_mileage": 90000,
+        "min_year": 2009,
+        "body_style": "suv",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-45",
+      "query": "Truck from 2012 under $33k with under 65,000 miles.",
+      "expected": {
+        "max_price": 33000,
+        "max_mileage": 65000,
+        "min_year": 2012,
+        "body_style": "truck",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 33000,
+        "max_mileage": 65000,
+        "min_year": 2012,
+        "body_style": "truck",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-46",
+      "query": "All wheel drive sedan under $20,000 with under 85k miles.",
+      "expected": {
+        "max_price": 20000,
+        "max_mileage": 85000,
+        "min_year": null,
+        "body_style": "sedan",
+        "drivetrain": "AWD"
+      },
+      "predicted": {
+        "max_price": 20000,
+        "max_mileage": 85000,
+        "min_year": null,
+        "body_style": "sedan",
+        "drivetrain": "AWD"
+      }
+    },
+    {
+      "id": "slot-47",
+      "query": "RWD crossover 2010 or newer at most $23,500 with under 75,000 miles.",
+      "expected": {
+        "max_price": 23500,
+        "max_mileage": 75000,
+        "min_year": 2010,
+        "body_style": "suv",
+        "drivetrain": "RWD"
+      },
+      "predicted": {
+        "max_price": 23500,
+        "max_mileage": 75000,
+        "min_year": 2010,
+        "body_style": "suv",
+        "drivetrain": "RWD"
+      }
+    },
+    {
+      "id": "slot-48",
+      "query": "4x4 pickup under $16,000 with under 120k miles.",
+      "expected": {
+        "max_price": 16000,
+        "max_mileage": 120000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      },
+      "predicted": {
+        "max_price": 16000,
+        "max_mileage": 120000,
+        "min_year": null,
+        "body_style": "truck",
+        "drivetrain": "4WD"
+      }
+    },
+    {
+      "id": "slot-49",
+      "query": "SUV newer than 2010 under $26,500 with up to 60k miles.",
+      "expected": {
+        "max_price": 26500,
+        "max_mileage": 60000,
+        "min_year": 2010,
+        "body_style": "suv",
+        "drivetrain": null
+      },
+      "predicted": {
+        "max_price": 26500,
+        "max_mileage": 60000,
+        "min_year": 2010,
+        "body_style": "suv",
+        "drivetrain": null
+      }
+    },
+    {
+      "id": "slot-50",
+      "query": "FWD sedan 2008 or newer, $12.5k or less, under 95,000 miles.",
+      "expected": {
+        "max_price": 12500,
+        "max_mileage": 95000,
+        "min_year": 2008,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      },
+      "predicted": {
+        "max_price": 12500,
+        "max_mileage": 95000,
+        "min_year": 2008,
+        "body_style": "sedan",
+        "drivetrain": "FWD"
+      }
+    }
+  ],
+  "rule_parser": {
+    "cases": 50,
+    "exact_match": 1,
+    "normalized_numeric_exact_match": 1,
+    "macro_f1": 1.0,
+    "per_slot_f1": {
+      "max_price": 1.0,
+      "max_mileage": 1.0,
+      "min_year": 1.0,
+      "body_style": 1.0,
+      "drivetrain": 1.0
+    },
+    "records": [
+      {
+        "id": "slot-01",
+        "query": "Looking for an AWD crossover 2008+ under $18.5k.",
+        "expected": {
+          "max_price": 18500,
+          "max_mileage": null,
+          "min_year": 2008,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 18500,
+          "max_mileage": null,
+          "min_year": 2008,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-02",
+        "query": "Find an all-wheel drive SUV under $18k with below 95k miles.",
+        "expected": {
+          "max_price": 18000,
+          "max_mileage": 95000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 18000,
+          "max_mileage": 95000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-03",
+        "query": "Need a 4x4 pickup at most $14,500 with under 110,000 miles.",
+        "expected": {
+          "max_price": 14500,
+          "max_mileage": 110000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 14500,
+          "max_mileage": 110000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-04",
+        "query": "Sedan 2010 or newer, budget of $12,000, under 80k miles.",
+        "expected": {
+          "max_price": 12000,
+          "max_mileage": 80000,
+          "min_year": 2010,
+          "body_style": "sedan",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 12000,
+          "max_mileage": 80000,
+          "min_year": 2010,
+          "body_style": "sedan",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-05",
+        "query": "FWD sedan after 2008, $11,500 or less, less than 90,000 miles.",
+        "expected": {
+          "max_price": 11500,
+          "max_mileage": 90000,
+          "min_year": 2008,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        },
+        "predicted": {
+          "max_price": 11500,
+          "max_mileage": 90000,
+          "min_year": 2008,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        }
+      },
+      {
+        "id": "slot-06",
+        "query": "Reliable AWD crossover at least 2009 up to $21,000 with max 75k miles.",
+        "expected": {
+          "max_price": 21000,
+          "max_mileage": 75000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 21000,
+          "max_mileage": 75000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-07",
+        "query": "Looking for a 4WD truck 2007+ no more than $19k and below 100k miles.",
+        "expected": {
+          "max_price": 19000,
+          "max_mileage": 100000,
+          "min_year": 2007,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 19000,
+          "max_mileage": 100000,
+          "min_year": 2007,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-08",
+        "query": "RWD sedan from 2011 under $24,500 with under 65,000 miles.",
+        "expected": {
+          "max_price": 24500,
+          "max_mileage": 65000,
+          "min_year": 2011,
+          "body_style": "sedan",
+          "drivetrain": "RWD"
+        },
+        "predicted": {
+          "max_price": 24500,
+          "max_mileage": 65000,
+          "min_year": 2011,
+          "body_style": "sedan",
+          "drivetrain": "RWD"
+        }
+      },
+      {
+        "id": "slot-09",
+        "query": "SUV below $9,500 with under 120k miles.",
+        "expected": {
+          "max_price": 9500,
+          "max_mileage": 120000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 9500,
+          "max_mileage": 120000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-10",
+        "query": "Pickup truck 2009 or newer under $25k for winter driving.",
+        "expected": {
+          "max_price": 25000,
+          "max_mileage": null,
+          "min_year": 2009,
+          "body_style": "truck",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 25000,
+          "max_mileage": null,
+          "min_year": 2009,
+          "body_style": "truck",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-11",
+        "query": "Four-wheel drive SUV 2008 or newer under $16,500 with under 95,000 mi.",
+        "expected": {
+          "max_price": 16500,
+          "max_mileage": 95000,
+          "min_year": 2008,
+          "body_style": "suv",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 16500,
+          "max_mileage": 95000,
+          "min_year": 2008,
+          "body_style": "suv",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-12",
+        "query": "Front-wheel drive sedan under $10k with less than 85k miles.",
+        "expected": {
+          "max_price": 10000,
+          "max_mileage": 85000,
+          "min_year": null,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        },
+        "predicted": {
+          "max_price": 10000,
+          "max_mileage": 85000,
+          "min_year": null,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        }
+      },
+      {
+        "id": "slot-13",
+        "query": "AWD sedan 2010+ at most $17,500 and up to 70,000 miles.",
+        "expected": {
+          "max_price": 17500,
+          "max_mileage": 70000,
+          "min_year": 2010,
+          "body_style": "sedan",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 17500,
+          "max_mileage": 70000,
+          "min_year": 2010,
+          "body_style": "sedan",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-14",
+        "query": "Crossover under $13.5k. with under 105k miles.",
+        "expected": {
+          "max_price": 13500,
+          "max_mileage": 105000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 13500,
+          "max_mileage": 105000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-15",
+        "query": "4x4 SUV after 2009, maximum $22,000, below 80,000 miles.",
+        "expected": {
+          "max_price": 22000,
+          "max_mileage": 80000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 22000,
+          "max_mileage": 80000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-16",
+        "query": "Rear-wheel drive pickup 2007 or newer under $15,000.",
+        "expected": {
+          "max_price": 15000,
+          "max_mileage": null,
+          "min_year": 2007,
+          "body_style": "truck",
+          "drivetrain": "RWD"
+        },
+        "predicted": {
+          "max_price": 15000,
+          "max_mileage": null,
+          "min_year": 2007,
+          "body_style": "truck",
+          "drivetrain": "RWD"
+        }
+      },
+      {
+        "id": "slot-17",
+        "query": "Budget of $8,000 for a reliable sedan under 130,000 miles.",
+        "expected": {
+          "max_price": 8000,
+          "max_mileage": 130000,
+          "min_year": null,
+          "body_style": "sedan",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 8000,
+          "max_mileage": 130000,
+          "min_year": null,
+          "body_style": "sedan",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-18",
+        "query": "All wheel drive crossover 2012 or newer under $27k with under 60k miles.",
+        "expected": {
+          "max_price": 27000,
+          "max_mileage": 60000,
+          "min_year": 2012,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 27000,
+          "max_mileage": 60000,
+          "min_year": 2012,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-19",
+        "query": "4WD pickup 2008+ with $23,000 or less and under 100,000 miles.",
+        "expected": {
+          "max_price": 23000,
+          "max_mileage": 100000,
+          "min_year": 2008,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 23000,
+          "max_mileage": 100000,
+          "min_year": 2008,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-20",
+        "query": "FWD crossover newer than 2009 below $16k and below 90k miles.",
+        "expected": {
+          "max_price": 16000,
+          "max_mileage": 90000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": "FWD"
+        },
+        "predicted": {
+          "max_price": 16000,
+          "max_mileage": 90000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": "FWD"
+        }
+      },
+      {
+        "id": "slot-21",
+        "query": "Sedan at least 2011 under $14,000 with no more than 75k miles.",
+        "expected": {
+          "max_price": 14000,
+          "max_mileage": 75000,
+          "min_year": 2011,
+          "body_style": "sedan",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 14000,
+          "max_mileage": 75000,
+          "min_year": 2011,
+          "body_style": "sedan",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-22",
+        "query": "Truck up to $29,500, 2010 or newer, under 85,000 miles.",
+        "expected": {
+          "max_price": 29500,
+          "max_mileage": 85000,
+          "min_year": 2010,
+          "body_style": "truck",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 29500,
+          "max_mileage": 85000,
+          "min_year": 2010,
+          "body_style": "truck",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-23",
+        "query": "AWD SUV under $19.5k. with strong safety and low repair costs.",
+        "expected": {
+          "max_price": 19500,
+          "max_mileage": null,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 19500,
+          "max_mileage": null,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-24",
+        "query": "4WD truck below 115k miles and at most $20,500.",
+        "expected": {
+          "max_price": 20500,
+          "max_mileage": 115000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 20500,
+          "max_mileage": 115000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-25",
+        "query": "FWD sedan 2007+ under $9k with under 110,000 miles.",
+        "expected": {
+          "max_price": 9000,
+          "max_mileage": 110000,
+          "min_year": 2007,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        },
+        "predicted": {
+          "max_price": 9000,
+          "max_mileage": 110000,
+          "min_year": 2007,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        }
+      },
+      {
+        "id": "slot-26",
+        "query": "Find an SUV 2009 and newer under $18k with under 95k miles.",
+        "expected": {
+          "max_price": 18000,
+          "max_mileage": 95000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 18000,
+          "max_mileage": 95000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-27",
+        "query": "Need a 4x4 pickup from 2010 under $26,000 with under 80,000 miles.",
+        "expected": {
+          "max_price": 26000,
+          "max_mileage": 80000,
+          "min_year": 2010,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 26000,
+          "max_mileage": 80000,
+          "min_year": 2010,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-28",
+        "query": "All-wheel drive sedan 2008+ less than $15.5k. with below 100k miles.",
+        "expected": {
+          "max_price": 15500,
+          "max_mileage": 100000,
+          "min_year": 2008,
+          "body_style": "sedan",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 15500,
+          "max_mileage": 100000,
+          "min_year": 2008,
+          "body_style": "sedan",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-29",
+        "query": "RWD truck under $17,000 with under 90k mi and good brakes.",
+        "expected": {
+          "max_price": 17000,
+          "max_mileage": 90000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "RWD"
+        },
+        "predicted": {
+          "max_price": 17000,
+          "max_mileage": 90000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "RWD"
+        }
+      },
+      {
+        "id": "slot-30",
+        "query": "Crossover 2012+ with a budget of $24,000 and under 65k miles.",
+        "expected": {
+          "max_price": 24000,
+          "max_mileage": 65000,
+          "min_year": 2012,
+          "body_style": "suv",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 24000,
+          "max_mileage": 65000,
+          "min_year": 2012,
+          "body_style": "suv",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-31",
+        "query": "FWD sedan after 2010, maximum $13,000, under 70,000 miles.",
+        "expected": {
+          "max_price": 13000,
+          "max_mileage": 70000,
+          "min_year": 2010,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        },
+        "predicted": {
+          "max_price": 13000,
+          "max_mileage": 70000,
+          "min_year": 2010,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        }
+      },
+      {
+        "id": "slot-32",
+        "query": "AWD crossover 2007 or newer under $12,500 for snowy roads.",
+        "expected": {
+          "max_price": 12500,
+          "max_mileage": null,
+          "min_year": 2007,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 12500,
+          "max_mileage": null,
+          "min_year": 2007,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-33",
+        "query": "Pickup 2008+ no more than $21,500 with under 105,000 miles.",
+        "expected": {
+          "max_price": 21500,
+          "max_mileage": 105000,
+          "min_year": 2008,
+          "body_style": "truck",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 21500,
+          "max_mileage": 105000,
+          "min_year": 2008,
+          "body_style": "truck",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-34",
+        "query": "4WD SUV under $31k with under 60,000 miles and cargo space.",
+        "expected": {
+          "max_price": 31000,
+          "max_mileage": 60000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 31000,
+          "max_mileage": 60000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-35",
+        "query": "Sedan $10,500 or less, 2008 or newer, below 95k miles.",
+        "expected": {
+          "max_price": 10500,
+          "max_mileage": 95000,
+          "min_year": 2008,
+          "body_style": "sedan",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 10500,
+          "max_mileage": 95000,
+          "min_year": 2008,
+          "body_style": "sedan",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-36",
+        "query": "RWD sedan 2009+ up to $22,500 and under 75k miles.",
+        "expected": {
+          "max_price": 22500,
+          "max_mileage": 75000,
+          "min_year": 2009,
+          "body_style": "sedan",
+          "drivetrain": "RWD"
+        },
+        "predicted": {
+          "max_price": 22500,
+          "max_mileage": 75000,
+          "min_year": 2009,
+          "body_style": "sedan",
+          "drivetrain": "RWD"
+        }
+      },
+      {
+        "id": "slot-37",
+        "query": "All-wheel drive SUV at least 2010 under $25k with below 85,000 miles.",
+        "expected": {
+          "max_price": 25000,
+          "max_mileage": 85000,
+          "min_year": 2010,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 25000,
+          "max_mileage": 85000,
+          "min_year": 2010,
+          "body_style": "suv",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-38",
+        "query": "4x4 truck 2011 or newer at most $32,000 with under 70k miles.",
+        "expected": {
+          "max_price": 32000,
+          "max_mileage": 70000,
+          "min_year": 2011,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 32000,
+          "max_mileage": 70000,
+          "min_year": 2011,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-39",
+        "query": "FWD crossover under $14,500 with under 88,000 miles.",
+        "expected": {
+          "max_price": 14500,
+          "max_mileage": 88000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": "FWD"
+        },
+        "predicted": {
+          "max_price": 14500,
+          "max_mileage": 88000,
+          "min_year": null,
+          "body_style": "suv",
+          "drivetrain": "FWD"
+        }
+      },
+      {
+        "id": "slot-40",
+        "query": "Sedan 2007 or newer under $7,500 with under 125k miles.",
+        "expected": {
+          "max_price": 7500,
+          "max_mileage": 125000,
+          "min_year": 2007,
+          "body_style": "sedan",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 7500,
+          "max_mileage": 125000,
+          "min_year": 2007,
+          "body_style": "sedan",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-41",
+        "query": "AWD pickup under $28k with less than 80,000 miles.",
+        "expected": {
+          "max_price": 28000,
+          "max_mileage": 80000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 28000,
+          "max_mileage": 80000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-42",
+        "query": "SUV 2008+ below $18.5k. with good fuel economy.",
+        "expected": {
+          "max_price": 18500,
+          "max_mileage": null,
+          "min_year": 2008,
+          "body_style": "suv",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 18500,
+          "max_mileage": null,
+          "min_year": 2008,
+          "body_style": "suv",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-43",
+        "query": "FWD sedan below 95k miles and under $11,000.",
+        "expected": {
+          "max_price": 11000,
+          "max_mileage": 95000,
+          "min_year": null,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        },
+        "predicted": {
+          "max_price": 11000,
+          "max_mileage": 95000,
+          "min_year": null,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        }
+      },
+      {
+        "id": "slot-44",
+        "query": "4WD crossover 2009 or newer with a budget of $19,000 and under 90k miles.",
+        "expected": {
+          "max_price": 19000,
+          "max_mileage": 90000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 19000,
+          "max_mileage": 90000,
+          "min_year": 2009,
+          "body_style": "suv",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-45",
+        "query": "Truck from 2012 under $33k with under 65,000 miles.",
+        "expected": {
+          "max_price": 33000,
+          "max_mileage": 65000,
+          "min_year": 2012,
+          "body_style": "truck",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 33000,
+          "max_mileage": 65000,
+          "min_year": 2012,
+          "body_style": "truck",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-46",
+        "query": "All wheel drive sedan under $20,000 with under 85k miles.",
+        "expected": {
+          "max_price": 20000,
+          "max_mileage": 85000,
+          "min_year": null,
+          "body_style": "sedan",
+          "drivetrain": "AWD"
+        },
+        "predicted": {
+          "max_price": 20000,
+          "max_mileage": 85000,
+          "min_year": null,
+          "body_style": "sedan",
+          "drivetrain": "AWD"
+        }
+      },
+      {
+        "id": "slot-47",
+        "query": "RWD crossover 2010 or newer at most $23,500 with under 75,000 miles.",
+        "expected": {
+          "max_price": 23500,
+          "max_mileage": 75000,
+          "min_year": 2010,
+          "body_style": "suv",
+          "drivetrain": "RWD"
+        },
+        "predicted": {
+          "max_price": 23500,
+          "max_mileage": 75000,
+          "min_year": 2010,
+          "body_style": "suv",
+          "drivetrain": "RWD"
+        }
+      },
+      {
+        "id": "slot-48",
+        "query": "4x4 pickup under $16,000 with under 120k miles.",
+        "expected": {
+          "max_price": 16000,
+          "max_mileage": 120000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        },
+        "predicted": {
+          "max_price": 16000,
+          "max_mileage": 120000,
+          "min_year": null,
+          "body_style": "truck",
+          "drivetrain": "4WD"
+        }
+      },
+      {
+        "id": "slot-49",
+        "query": "SUV newer than 2010 under $26,500 with up to 60k miles.",
+        "expected": {
+          "max_price": 26500,
+          "max_mileage": 60000,
+          "min_year": 2010,
+          "body_style": "suv",
+          "drivetrain": null
+        },
+        "predicted": {
+          "max_price": 26500,
+          "max_mileage": 60000,
+          "min_year": 2010,
+          "body_style": "suv",
+          "drivetrain": null
+        }
+      },
+      {
+        "id": "slot-50",
+        "query": "FWD sedan 2008 or newer, $12.5k or less, under 95,000 miles.",
+        "expected": {
+          "max_price": 12500,
+          "max_mileage": 95000,
+          "min_year": 2008,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        },
+        "predicted": {
+          "max_price": 12500,
+          "max_mileage": 95000,
+          "min_year": 2008,
+          "body_style": "sedan",
+          "drivetrain": "FWD"
+        }
+      }
+    ]
+  }
+}
