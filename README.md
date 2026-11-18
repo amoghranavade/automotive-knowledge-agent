@@ -1,6 +1,6 @@
 # ClickLess Automotive
 
-ClickLess Automotive turns a natural-language vehicle request into ranked used-car options with listing, owner-review, aftermarket-product, NHTSA safety/recall, and GraphRAG citation evidence.
+ClickLess Automotive turns a natural language vehicle request into ranked used-car options with listing, owner-review, aftermarket-product, NHTSA safety/recall, and GraphRAG citation evidence.
 
 The current research snapshot contains:
 
@@ -67,7 +67,7 @@ EBAY_CLIENT_SECRET=
 BESTBUY_API_KEY=
 ```
 
-Only `AUTO_DEV_API_KEY` and `SERPAPI_API_KEY` are needed for the current live data path. MarketCheck, eBay, and Best Buy are optional; connectors without credentials are skipped.
+Now only `AUTO_DEV_API_KEY` and `SERPAPI_API_KEY` are needed for the current live data path. MarketCheck, eBay, and Best Buy are optional; connectors without credentials are skipped.
 
 The `.env` file is ignored by Git. Never commit or send it.
 
