@@ -153,14 +153,18 @@ def refresh_serpapi(
     return added
 
 
-def refresh_ebay(catalog: dict, per_vehicle: int) -> int:
+def refresh_ebay(
+    catalog: dict,
+    per_vehicle: int,
+    max_vehicles: int | None = None,
+) -> int:
     client = EbayClient.from_env()
     if client is None:
         return 0
     added = 0
     existing = {item["id"] for item in catalog["listings"]}
     captured = datetime.now(timezone.utc).isoformat()
-    for vehicle in catalog["vehicles"]:
+    for vehicle in catalog["vehicles"][:max_vehicles]:
         query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']}"
         for item in client.search(query, limit=per_vehicle * 3):
             mileage = item.attributes.get("mileage")
@@ -194,14 +198,18 @@ def refresh_ebay(catalog: dict, per_vehicle: int) -> int:
     return added
 
 
-def refresh_bestbuy(catalog: dict, per_vehicle: int) -> int:
+def refresh_bestbuy(
+    catalog: dict,
+    per_vehicle: int,
+    max_vehicles: int | None = None,
+) -> int:
     client = BestBuyClient.from_env()
     if client is None:
         return 0
     added = 0
     existing = {item["id"] for item in catalog["parts"]}
     captured = datetime.now(timezone.utc).isoformat()
-    for vehicle in catalog["vehicles"]:
+    for vehicle in catalog["vehicles"][:max_vehicles]:
         query = f"{vehicle['make']} {vehicle['model']} car electronics"
         for item in client.search(query, limit=per_vehicle):
             if item.price is None:
@@ -242,8 +250,8 @@ def main() -> None:
         catalog, args.per_vehicle, max_vehicles
     )
     serpapi = refresh_serpapi(catalog, args.per_vehicle, max_vehicles)
-    ebay = refresh_ebay(catalog, args.per_vehicle)
-    bestbuy = refresh_bestbuy(catalog, args.per_vehicle)
+    ebay = refresh_ebay(catalog, args.per_vehicle, max_vehicles)
+    bestbuy = refresh_bestbuy(catalog, args.per_vehicle, max_vehicles)
     live_source_names = {
         item["source_name"]
         for collection in (catalog["listings"], catalog["parts"])

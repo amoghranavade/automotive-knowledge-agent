@@ -4,6 +4,8 @@ import os
 
 import requests
 
+import clickless.config  # noqa: F401
+
 from .base import RetailError, RetailResult
 
 

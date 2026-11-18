@@ -3,10 +3,11 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import random
 import time
 from pathlib import Path
-from statistics import median
+from statistics import mean, median
 from typing import Any
 
 from clickless.config import settings
@@ -16,10 +17,102 @@ from clickless.evaluation.scenarios import default_scenarios
 from clickless.service import recommend
 
 
-def run(configurations: str, use_model: bool, output: Path) -> dict[str, Any]:
+def _p95(latencies: list[float]) -> float:
+    if not latencies:
+        return 0.0
+    ordered = sorted(latencies)
+    index = min(max(math.ceil(len(ordered) * 0.95) - 1, 0), len(ordered) - 1)
+    return ordered[index]
+
+
+def _candidate_satisfies_constraints(
+    candidate: dict[str, Any], expected: dict[str, Any]
+) -> bool:
+    max_price = expected.get("max_price")
+    if max_price is not None:
+        price = candidate.get("price")
+        if price is None or price > max_price:
+            return False
+    max_mileage = expected.get("max_mileage")
+    if max_mileage is not None:
+        mileage = candidate.get("mileage")
+        if mileage is None or mileage > max_mileage:
+            return False
+    min_year = expected.get("min_year")
+    if min_year is not None:
+        year = candidate.get("year")
+        if year is None or year < min_year:
+            return False
+    body_style = expected.get("body_style")
+    if body_style:
+        if str(candidate.get("body_style") or "").casefold() != str(body_style).casefold():
+            return False
+    drivetrain = expected.get("drivetrain")
+    if drivetrain:
+        if str(candidate.get("drivetrain") or "").casefold() != str(drivetrain).casefold():
+            return False
+    make = expected.get("make")
+    if make:
+        if str(candidate.get("make") or "").casefold() != str(make).casefold():
+            return False
+    return True
+
+
+def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
+    latencies = [float(record["latency_seconds"]) for record in records]
+    gold_checks = [
+        bool(record["gold_constraint_satisfied"])
+        for record in records
+        if record.get("gold_constraint_satisfied") is not None
+    ]
+    abstention_checks = [
+        bool(record["abstained_correctly"])
+        for record in records
+        if record.get("abstained_correctly") is not None
+    ]
+    retentions = [
+        float(record["cohort_retention"])
+        for record in records
+        if record.get("cohort_retention") is not None
+    ]
+    return {
+        "runs": len(records),
+        "median_latency_seconds": median(latencies) if latencies else 0.0,
+        "p95_latency_seconds": _p95(latencies),
+        "constraint_satisfaction": (
+            sum(bool(record["constraint_satisfied"]) for record in records) / len(records)
+            if records
+            else 0.0
+        ),
+        "gold_constraint_satisfaction": (
+            sum(gold_checks) / len(gold_checks) if gold_checks else None
+        ),
+        "abstention_accuracy": (
+            sum(abstention_checks) / len(abstention_checks)
+            if abstention_checks
+            else None
+        ),
+        "mean_cohort_retention": mean(retentions) if retentions else None,
+        "citation_coverage": (
+            sum(float(record["citation_coverage"]) for record in records) / len(records)
+            if records
+            else 0.0
+        ),
+    }
+
+
+def run(
+    configurations: str,
+    use_model: bool,
+    output: Path,
+    scenarios: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
+    selected_scenarios = scenarios if scenarios is not None else default_scenarios()
     records = []
-    for scenario in default_scenarios():
+    for scenario in selected_scenarios:
+        answerable = bool(scenario.get("answerable", True))
+        expected = dict(scenario.get("expected_constraints") or {})
         for configuration in configurations:
             start = time.perf_counter()
             result = recommend(
@@ -30,16 +123,40 @@ def run(configurations: str, use_model: bool, output: Path) -> dict[str, Any]:
                 candidate_limit=10,
             )
             latency = time.perf_counter() - start
+            candidates = result.get("candidates") or []
+            exact_match = result.get("match_mode") == "exact"
+            gold_satisfied = (
+                bool(
+                    exact_match
+                    and candidates
+                    and all(
+                        _candidate_satisfies_constraints(candidate, expected)
+                        for candidate in candidates
+                    )
+                )
+                if answerable
+                else None
+            )
+            abstained = (
+                (result.get("match_mode") == "closest_alternatives")
+                if not answerable
+                else None
+            )
             records.append(
                 {
                     "scenario_id": scenario["id"],
                     "split": scenario["split"],
                     "query": scenario["query"],
+                    "answerable": answerable,
+                    "expected_constraints": expected,
                     "configuration": configuration,
                     "latency_seconds": round(latency, 6),
-                    "citation_coverage": citation_coverage(result["candidates"]),
-                    "constraint_satisfied": result["match_mode"] == "exact",
-                    "candidate_ids": [item["id"] for item in result["candidates"]],
+                    "citation_coverage": citation_coverage(candidates),
+                    "constraint_satisfied": exact_match,
+                    "gold_constraint_satisfied": gold_satisfied,
+                    "abstained_correctly": abstained,
+                    "cohort_retention": result.get("cohort_retention"),
+                    "candidate_ids": [item["id"] for item in candidates],
                     "result": result,
                 }
             )
@@ -55,14 +172,16 @@ def run(configurations: str, use_model: bool, output: Path) -> dict[str, Any]:
     _write_explanation_ratings(records, system_labels, output / "explanation_ratings.csv")
     _write_absa_template(output / "absa_annotations.csv")
 
-    latencies = [record["latency_seconds"] for record in records]
+    aggregate = _summarize_records(records)
     summary = {
-        "runs": len(records),
+        **aggregate,
         "configurations": list(configurations),
-        "median_latency_seconds": median(latencies),
-        "p95_latency_seconds": sorted(latencies)[int(len(latencies) * 0.95) - 1],
-        "constraint_satisfaction": sum(record["constraint_satisfied"] for record in records) / len(records),
-        "citation_coverage": sum(record["citation_coverage"] for record in records) / len(records),
+        "by_configuration": {
+            configuration: _summarize_records(
+                [record for record in records if record["configuration"] == configuration]
+            )
+            for configuration in configurations
+        },
         "human_metrics_pending": True,
     }
     (output / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -122,7 +241,18 @@ def _write_absa_template(path: Path) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["source_id", "text", "source_kind", "split", "aspect", "subsystem", "polarity", "annotator", "double_annotated"],
+            fieldnames=[
+                "source_id",
+                "text",
+                "source_kind",
+                "split",
+                "aspect",
+                "subsystem",
+                "polarity",
+                "span",
+                "annotator",
+                "double_annotated",
+            ],
         )
         writer.writeheader()
         for index, (source_id, text, source_kind) in enumerate(rows):

@@ -1,4 +1,5 @@
 @prefix clickless: <https://clickless.example.org/resource/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix schema: <https://schema.org/> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
@@ -15,4 +16,41 @@ clickless:OfferShape a sh:NodeShape ;
   sh:property [ sh:path clickless:price ; sh:minInclusive 1 ; sh:minCount 1 ] ;
   sh:property [ sh:path clickless:mileage ; sh:minInclusive 0 ; sh:minCount 1 ] ;
   sh:property [ sh:path clickless:source_url ; sh:minCount 1 ] ;
-  sh:property [ sh:path clickless:captured_at ; sh:minCount 1 ] .
+  sh:property [ sh:path clickless:captured_at ; sh:minCount 1 ] ;
+  sh:property [ sh:path prov:wasDerivedFrom ; sh:minCount 1 ] .
+
+clickless:ProductShape a sh:NodeShape ;
+  sh:targetClass schema:Product ;
+  sh:property [ sh:path clickless:id ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:name ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:price ; sh:minInclusive 0 ; sh:minCount 1 ] ;
+  sh:property [ sh:path prov:wasDerivedFrom ; sh:minCount 1 ] .
+
+clickless:ReviewShape a sh:NodeShape ;
+  sh:targetClass schema:Review ;
+  sh:property [ sh:path clickless:id ; sh:minCount 1 ] ;
+  sh:property [ sh:path schema:reviewBody ; sh:minCount 1 ] ;
+  sh:property [ sh:path prov:wasDerivedFrom ; sh:minCount 1 ] .
+
+clickless:SafetyRatingShape a sh:NodeShape ;
+  sh:targetClass clickless:SafetyRating ;
+  sh:property [ sh:path clickless:id ; sh:minCount 1 ] ;
+  sh:property [ sh:path prov:wasDerivedFrom ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:overall_stars ; sh:datatype xsd:integer ; sh:minInclusive 1 ; sh:maxInclusive 5 ] .
+
+clickless:RecallShape a sh:NodeShape ;
+  sh:targetClass clickless:RecallCampaign ;
+  sh:property [ sh:path clickless:id ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:component ; sh:minCount 1 ] ;
+  sh:property [ sh:path prov:wasDerivedFrom ; sh:minCount 1 ] .
+
+clickless:AspectAssertionShape a sh:NodeShape ;
+  sh:targetClass clickless:AspectAssertion ;
+  sh:property [ sh:path clickless:id ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:aspect ; sh:in ("reliability" "fuel_economy" "cargo" "maintenance") ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:polarity ; sh:in ("positive" "negative" "neutral" "mixed") ; sh:minCount 1 ] .
+
+clickless:SourceDocumentShape a sh:NodeShape ;
+  sh:targetClass prov:Entity ;
+  sh:property [ sh:path prov:generatedAtTime ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:url ; sh:minCount 1 ] .

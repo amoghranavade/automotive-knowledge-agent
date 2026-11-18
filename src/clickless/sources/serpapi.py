@@ -6,6 +6,8 @@ from typing import Any
 
 import requests
 
+import clickless.config  # noqa: F401
+
 from .base import ProductOffer, SourceError
 
 

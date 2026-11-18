@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+import inspect
+import re
 from typing import Any
 
+from .data.repository import load_catalog
+from .graph import retrieve_evidence_paths
 from .llm import (
     QwenClient,
     QwenError,
-    apply_model_aspects,
     apply_grounded_summaries,
+    apply_model_aspects,
     parse_request_with_model,
 )
-from .data.repository import load_catalog
-from .graph import retrieve_evidence_paths
-from .parser import parse
-from .ranking import rank_closest_vehicles, rank_vehicles
+from .models import Constraints
+from .parser import build_navigation_plan, parse
+from .ranking import aspect_summary, rank_closest_vehicles, rank_vehicles
 from .retrieval import retrieve_passages
 from .sentiment import apply_vader_aspects
 from .store import data_snapshot, load_vehicles, with_live_recalls
@@ -25,6 +28,7 @@ def parse_request(query: str) -> dict[str, Any]:
         "query": query,
         "constraints": constraints.to_dict(),
         "clarification_questions": questions,
+        "navigation_plan": build_navigation_plan(constraints, query),
     }
 
 
@@ -96,6 +100,9 @@ def _evidence(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
                 "observed_at": review["observed_at"],
                 "text": review["text"],
                 "facts": {"review_year": review["year"]},
+                "aspect_assertions": review.get("aspect_assertions", []),
+                "match_type": review.get("match_type", "exact_year"),
+                "source_kind": review.get("source_kind", "owner_review"),
                 "indirect": review.get("match_type") != "exact_year",
                 "data_mode": review.get("data_mode", "frozen_snapshot"),
             }
@@ -109,12 +116,63 @@ def _evidence(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
                 "url": product["url"],
                 "observed_at": product["observed_at"],
                 "text": product["text"],
-                "facts": {"verified_fitment": product["verified_fitment"]},
+                "facts": {
+                    "verified_fitment": product["verified_fitment"],
+                    "price": product.get("price"),
+                },
                 "indirect": False,
                 "data_mode": product.get("data_mode", "frozen_snapshot"),
             }
         )
     return items
+
+
+def _concise_text(text: str, max_len: int = 240) -> str:
+    cleaned = " ".join(str(text or "").split())
+    if len(cleaned) <= max_len:
+        return cleaned
+    cutoff = cleaned.rfind(" ", 0, max_len - 2)
+    if cutoff <= 0:
+        cutoff = max_len - 3
+    return cleaned[:cutoff].rstrip(" ,;:") + "..."
+
+
+def _concise_review_pro(
+    exact_reviews: list[dict[str, Any]],
+    configuration: str,
+) -> dict[str, Any] | None:
+    if not exact_reviews:
+        return None
+    if configuration != "D":
+        for review in exact_reviews:
+            for assertion in review.get("aspect_assertions", []):
+                if assertion.get("polarity") == "positive":
+                    span = str(assertion.get("span") or "").strip()
+                    if span:
+                        return {
+                            "text": _concise_text(span, 240),
+                            "evidence_ids": [review["id"]],
+                        }
+    for review in exact_reviews:
+        assertions = review.get("aspect_assertions", [])
+        if assertions and all(a.get("polarity") == "negative" for a in assertions):
+            continue
+        raw_text = str(review.get("text") or "").strip()
+        if raw_text:
+            first_sentence = re.split(r"(?<=[.!?])\s+", raw_text, maxsplit=1)[0]
+            return {
+                "text": _concise_text(first_sentence, 240),
+                "evidence_ids": [review["id"]],
+            }
+    for review in exact_reviews:
+        raw_text = str(review.get("text") or "").strip()
+        if raw_text:
+            first_sentence = re.split(r"(?<=[.!?])\s+", raw_text, maxsplit=1)[0]
+            return {
+                "text": _concise_text(first_sentence, 240),
+                "evidence_ids": [review["id"]],
+            }
+    return None
 
 
 def _candidate(
@@ -123,6 +181,7 @@ def _candidate(
     components: dict[str, float | None],
     missing: list[str],
     constraint_violations: list[str] | None = None,
+    configuration: str = "C",
 ) -> dict[str, Any]:
     evidence = _evidence(vehicle)
     exact_reviews = [item for item in evidence if item["type"] == "review" and not item["indirect"]]
@@ -131,13 +190,9 @@ def _candidate(
     stars = vehicle["safety"]["ncap_stars"]
     safety_text = f"NHTSA reports a {stars}-star safety rating."
     pros = [{"text": safety_text, "evidence_ids": [safety_id]}] if stars else []
-    if exact_reviews:
-        pros.append(
-            {
-                "text": exact_reviews[0]["text"],
-                "evidence_ids": [exact_reviews[0]["id"]],
-            }
-        )
+    review_pro = _concise_review_pro(exact_reviews, configuration)
+    if review_pro is not None:
+        pros.append(review_pro)
     recall_items = [item for item in evidence if item["type"] == "recall"]
     if recall_items:
         source_label = "NHTSA returned" if vehicle["safety"]["recall_mode"] == "live" else "The NHTSA snapshot contains"
@@ -154,7 +209,14 @@ def _candidate(
                 "evidence_ids": [safety_id],
             }
         ]
-    indirect_reviews = [item for item in evidence if item["type"] == "review" and item["indirect"]]
+    indirect_reviews = [
+        item
+        for item in evidence
+        if item["type"] == "review"
+        and item["indirect"]
+        and item.get("match_type", "same_generation") == "same_generation"
+        and item.get("source_kind", "owner_review") != "product_review"
+    ]
     if indirect_reviews:
         cautions.append(
             {
@@ -190,6 +252,7 @@ def _candidate(
         "score": score,
         "tier": "requires_additional_evidence" if missing else "complete",
         "score_components": components,
+        "aspect_summary": aspect_summary(vehicle),
         "missing_evidence": missing,
         "constraint_violations": constraint_violations or [],
         "pros": pros,
@@ -200,6 +263,45 @@ def _candidate(
     }
     verify_candidate(candidate)
     return candidate
+
+
+def _retrieve_graph_paths(
+    catalog: dict[str, Any],
+    vehicle_id: str,
+    aspects: list[str] | None,
+    live_recalls: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    params = inspect.signature(retrieve_evidence_paths).parameters
+    kwargs: dict[str, Any] = {}
+    if "aspects" in params:
+        kwargs["aspects"] = aspects
+    if "live_recalls" in params:
+        kwargs["live_recalls"] = live_recalls
+    return retrieve_evidence_paths(catalog, vehicle_id, **kwargs)
+
+
+def _live_recalls_payload(vehicle: dict[str, Any]) -> list[dict[str, Any]] | None:
+    safety = vehicle.get("safety", {})
+    if safety.get("recall_mode") != "live":
+        return None
+    payload = []
+    for index, recall in enumerate(safety.get("recalls", [])):
+        source_id = str(recall.get("source_id") or f"nhtsa-live-{index}")
+        payload.append(
+            {
+                "id": f"{vehicle['id']}-{source_id}-{index}",
+                "vehicle_id": vehicle["id"],
+                "campaign_number": recall.get("campaign_number", ""),
+                "component": recall.get("component", "unknown"),
+                "summary": recall.get("summary", ""),
+                "remedy": recall.get("remedy", ""),
+                "source_id": source_id,
+                "source_name": recall.get("source", "NHTSA"),
+                "source_url": recall.get("url", "https://www.nhtsa.gov/recalls"),
+                "captured_at": recall.get("observed_at", "unknown"),
+            }
+        )
+    return payload
 
 
 def recommend(
@@ -236,6 +338,14 @@ def recommend(
             client = None
             model_notices.append(f"Qwen unavailable; used rule-based parsing. {error}")
 
+    parsed_constraints = constraints
+    navigation_plan = build_navigation_plan(parsed_constraints, query)
+    ranking_constraints = (
+        _without_sentiment_weights(parsed_constraints)
+        if configuration == "E"
+        else parsed_constraints
+    )
+
     vehicles = load_vehicles(live_nhtsa=False)
     if configuration == "A":
         try:
@@ -243,50 +353,87 @@ def recommend(
             model_stages["review_extraction"] = "vader"
         except RuntimeError as error:
             model_notices.append(str(error))
-    if configuration == "E":
-        constraints = _without_sentiment_weights(constraints)
 
-    if client is not None and configuration in {"C", "D"}:
-        preliminary = rank_vehicles(vehicles, constraints)
+    if client is not None and configuration in {"B", "C", "D", "E"}:
+        preliminary = rank_vehicles(vehicles, parsed_constraints)
         if not preliminary:
-            preliminary = rank_closest_vehicles(vehicles, constraints)
-        extraction_pool = [item[0] for item in preliminary[:12]]
+            preliminary = rank_closest_vehicles(vehicles, parsed_constraints)
+        pool_size = min(max(candidate_limit + 1, 4), 5)
+        extraction_pool = [item[0] for item in preliminary[:pool_size]]
+        if configuration == "E":
+            preliminary_e = rank_vehicles(vehicles, ranking_constraints)
+            if not preliminary_e:
+                preliminary_e = rank_closest_vehicles(vehicles, ranking_constraints)
+            seen_ids = {item["id"] for item in extraction_pool}
+            for item in preliminary_e[:pool_size]:
+                if item[0]["id"] not in seen_ids:
+                    extraction_pool.append(item[0])
+                    seen_ids.add(item[0]["id"])
         try:
-            enriched = apply_model_aspects(client, extraction_pool)
+            enriched = apply_model_aspects(
+                client,
+                extraction_pool,
+                max_reviews_per_vehicle=2,
+            )
             by_id = {vehicle["id"]: vehicle for vehicle in enriched}
             vehicles = [by_id.get(vehicle["id"], vehicle) for vehicle in vehicles]
             model_stages["review_extraction"] = "qwen"
         except (QwenError, TypeError, ValueError, KeyError) as error:
             model_notices.append(f"Review aspects used stored evidence. {error}")
 
-    ranked = rank_vehicles(vehicles, constraints)
+    ranked = rank_vehicles(vehicles, ranking_constraints)
+    feasible_count = len(ranked)
+    comparable_cohort_count = sum(1 for _, _, _, missing in ranked if not missing)
+    cohort_retention = (
+        round(comparable_cohort_count / feasible_count, 4) if feasible_count else None
+    )
+
     match_mode = "exact"
+    selected_vehicles: list[dict[str, Any]] = []
     if ranked:
         ranked = _top_distinct(ranked, candidate_limit)
-        candidates = [
-            _candidate(
-                with_live_recalls(vehicle) if live_nhtsa else vehicle,
-                score,
-                components,
-                missing,
+        candidates = []
+        for vehicle, score, components, missing in ranked:
+            final_vehicle = with_live_recalls(vehicle) if live_nhtsa else vehicle
+            selected_vehicles.append(final_vehicle)
+            candidates.append(
+                _candidate(
+                    final_vehicle,
+                    score,
+                    components,
+                    missing,
+                    configuration=configuration,
+                )
             )
-            for vehicle, score, components, missing in ranked
-        ]
     else:
         match_mode = "closest_alternatives"
-        closest = _top_distinct(rank_closest_vehicles(vehicles, constraints), candidate_limit)
-        candidates = [
-            _candidate(
-                with_live_recalls(vehicle) if live_nhtsa else vehicle,
-                score,
-                components,
-                missing,
-                violations,
+        closest = _top_distinct(
+            rank_closest_vehicles(vehicles, ranking_constraints),
+            candidate_limit,
+        )
+        candidates = []
+        for vehicle, score, components, missing, violations in closest:
+            final_vehicle = with_live_recalls(vehicle) if live_nhtsa else vehicle
+            selected_vehicles.append(final_vehicle)
+            candidates.append(
+                _candidate(
+                    final_vehicle,
+                    score,
+                    components,
+                    missing,
+                    violations,
+                    configuration=configuration,
+                )
             )
-            for vehicle, score, components, missing, violations in closest
-        ]
+
     catalog = load_catalog()
-    for candidate in candidates:
+    requested_aspects = [
+        name
+        for name in ("reliability", "maintenance", "fuel_economy", "cargo")
+        if parsed_constraints.preferences.get(name, 0) > 0
+    ] or None
+
+    for selected_vehicle, candidate in zip(selected_vehicles, candidates):
         if configuration == "A":
             candidate["retrieved_passages"] = retrieve_passages(
                 query, candidate["evidence"], "bm25"
@@ -307,7 +454,15 @@ def recommend(
                 model_notices.append(str(error))
             candidate["graph_paths"] = []
         else:
-            graph_paths = retrieve_evidence_paths(catalog, candidate["id"])
+            live_payload = (
+                _live_recalls_payload(selected_vehicle) if live_nhtsa else None
+            )
+            graph_paths = _retrieve_graph_paths(
+                catalog,
+                candidate["id"],
+                requested_aspects,
+                live_payload,
+            )
             backend = graph_paths[0].get("backend", "memory") if graph_paths else "memory"
             if configuration == "D":
                 graph_paths = [
@@ -317,8 +472,18 @@ def recommend(
                     and "review" not in path.get("source_kinds", [])
                 ]
                 graph_paths.extend(_raw_review_paths(candidate, backend))
-            else:
-                graph_paths.extend(_lineage_paths(candidate, backend))
+            existing_lineage_ids = {
+                evidence_id
+                for path in graph_paths
+                if path.get("kind") == "generation_lineage"
+                for evidence_id in path.get("evidence_ids", [])
+            }
+            for path in _lineage_paths(candidate, backend):
+                if not any(
+                    eid in existing_lineage_ids
+                    for eid in path.get("evidence_ids", [])
+                ):
+                    graph_paths.append(path)
             candidate["graph_paths"] = graph_paths
             try:
                 candidate["retrieved_passages"] = retrieve_passages(
@@ -334,7 +499,11 @@ def recommend(
             candidate["retrieval_mode"] = f"ontology_graph+{dense_mode}"
     if client is not None:
         try:
-            candidates = apply_grounded_summaries(client, candidates)
+            candidates = apply_grounded_summaries(
+                client,
+                candidates,
+                include_aspect_assertions=(configuration != "D"),
+            )
             model_stages["summaries"] = "qwen"
         except (QwenError, TypeError, ValueError, KeyError) as error:
             model_notices.append(f"Recommendation summaries used stored evidence. {error}")
@@ -350,8 +519,9 @@ def recommend(
         model_mode = "qwen_partial"
     return {
         "query": query,
-        "parsed": constraints.to_dict(),
+        "parsed": ranking_constraints.to_dict(),
         "clarification_questions": questions,
+        "navigation_plan": navigation_plan,
         "candidates": candidates,
         "status": status,
         "match_mode": match_mode,
@@ -360,6 +530,9 @@ def recommend(
             if match_mode == "closest_alternatives"
             else None
         ),
+        "feasible_count": feasible_count,
+        "comparable_cohort_count": comparable_cohort_count,
+        "cohort_retention": cohort_retention,
         "data_mode": snapshot.get("mode", "frozen_snapshot"),
         "data_notice": snapshot.get("notice"),
         "model_mode": model_mode,
@@ -370,9 +543,7 @@ def recommend(
     }
 
 
-def _without_sentiment_weights(constraints: Any) -> Any:
-    from .models import Constraints
-
+def _without_sentiment_weights(constraints: Constraints) -> Constraints:
     remaining = {
         name: weight
         for name, weight in constraints.preferences.items()
@@ -385,6 +556,7 @@ def _without_sentiment_weights(constraints: Any) -> Any:
         min_year=constraints.min_year,
         body_style=constraints.body_style,
         drivetrain=constraints.drivetrain,
+        make=constraints.make,
         preferences={name: round(weight / total, 4) for name, weight in remaining.items()},
     )
 
@@ -436,5 +608,8 @@ def _lineage_paths(candidate: dict[str, Any], backend: str) -> list[dict[str, An
             "backend": backend,
         }
         for item in candidate["evidence"]
-        if item["type"] == "review" and item["indirect"]
+        if item["type"] == "review"
+        and item["indirect"]
+        and item.get("match_type", "same_generation") == "same_generation"
+        and item.get("source_kind", "owner_review") != "product_review"
     ][:2]

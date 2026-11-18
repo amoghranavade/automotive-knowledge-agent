@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable, Sequence
 from statistics import mean
-from typing import Callable
+from typing import Any
 
 
 def precision_at_k(relevance: list[float], k: int = 5, threshold: float = 2.0) -> float:
+    if k <= 0:
+        raise ValueError("k must be positive")
     values = relevance[:k]
     return sum(value >= threshold for value in values) / k
 
 
 def ndcg_at_k(relevance: list[float], k: int = 5) -> float:
+    if k <= 0:
+        raise ValueError("k must be positive")
     values = relevance[:k]
     dcg = sum((2**value - 1) / math.log2(index + 2) for index, value in enumerate(values))
     ideal = sorted(relevance, reverse=True)[:k]
@@ -29,7 +34,7 @@ def citation_coverage(candidates: list[dict]) -> float:
     return sum(bool(claim.get("evidence_ids")) for claim in claims) / len(claims) if claims else 0.0
 
 
-def cohen_kappa(first: list[int], second: list[int]) -> float:
+def cohen_kappa(first: Sequence[Any], second: Sequence[Any]) -> float:
     if len(first) != len(second) or not first:
         raise ValueError("Judge label lists must be non-empty and aligned")
     labels = sorted(set(first) | set(second))

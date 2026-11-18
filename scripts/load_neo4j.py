@@ -3,6 +3,7 @@ import os
 
 from neo4j import GraphDatabase
 
+import clickless.config  # noqa: F401
 from clickless.data import load_catalog
 from clickless.graph import load_into_neo4j
 

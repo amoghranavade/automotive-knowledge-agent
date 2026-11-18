@@ -12,7 +12,7 @@
         <span class="brand-mark">C</span>
         <span>ClickLess Automotive</span>
       </a>
-      <span class="tagline">Vehicle recommendations with cited evidence</span>
+      <span class="tagline">Evidence-backed vehicle recommendations with GraphRAG citations</span>
     </header>
 
     <main>
@@ -22,7 +22,11 @@
         <p>Set a budget, body style, driving needs, safety priorities, or maintenance concerns.</p>
       </section>
 
-      <p id="data-notice" class="data-summary">Loading data…</p>
+      <div class="status-strip" aria-label="System status">
+        <span id="data-notice" class="status-pill status-pill--catalog">Loading catalog…</span>
+        <span id="model-status" class="status-pill status-pill--model">Checking model…</span>
+        <span id="graph-status" class="status-pill status-pill--graph">Memory Graph</span>
+      </div>
 
       <form id="search-form" class="search-panel">
         <div class="request-heading">
@@ -34,57 +38,100 @@
             <span>Speak request</span>
           </button>
         </div>
-        <textarea id="query" name="query" rows="4" maxlength="1000" required>Find a reliable SUV under $18,000 with good safety ratings for snow driving and affordable brake maintenance.</textarea>
+
+        <textarea id="query" name="query" rows="3" maxlength="1000" required placeholder="e.g., Find a reliable AWD SUV under $18,000 with good safety ratings for snow driving and affordable brake maintenance.">Find a reliable SUV under $18,000 with good safety ratings for snow driving and affordable brake maintenance.</textarea>
         <p id="voice-status" class="voice-status" aria-live="polite" hidden></p>
+
         <div class="examples" aria-label="Example searches">
           <button type="button" data-query="Find a reliable SUV under $18,000 with good safety ratings for snow driving and affordable brake maintenance.">Snow-ready SUV</button>
-          <button type="button" data-query="Find an AWD SUV under $18,500 with low mileage and good reliability.">Lower-mileage SUV</button>
-          <button type="button" data-query="Find a fuel-efficient SUV under $19,000 with good cargo room and reliability.">Efficient SUV</button>
+          <button type="button" data-query="Find a fuel-efficient sedan under $15,000 with under 90k miles and strong reliability.">Commuter Sedan</button>
+          <button type="button" data-query="Find a 4WD truck under $25,000 with strong reliability for hauling and winter driving.">Towing Truck</button>
+          <button type="button" data-query="Find a reliable AWD SUV with good cargo space and low brake maintenance.">Clarification Demo (No Budget)</button>
         </div>
-        <div class="model-control">
+
+        <div class="search-options">
           <div class="request-toggles">
             <label class="model-toggle" for="use-model">
               <input id="use-model" type="checkbox" checked>
-            <span>Use {{ model_name }}</span>
+              <span>Use {{ model_name }}</span>
             </label>
             <label class="model-toggle" for="live-nhtsa">
               <input id="live-nhtsa" type="checkbox">
               <span>Check live NHTSA recalls</span>
             </label>
           </div>
-          <span id="model-status" class="model-status">Checking model…</span>
+
+          <label class="configuration-control" for="configuration">
+            <span>Configuration</span>
+            <select id="configuration" name="configuration">
+              <option value="A">A · Classical BM25 + VADER</option>
+              <option value="B">B · Flat MiniLM Vector RAG</option>
+              <option value="C" selected>C · Full Ontology GraphRAG</option>
+              <option value="D">D · GraphRAG (Raw Reviews)</option>
+              <option value="E">E · GraphRAG (No Sentiment Rank)</option>
+            </select>
+          </label>
         </div>
-        <label class="configuration-control" for="configuration">
-          Evaluation configuration
-          <select id="configuration" name="configuration">
-            <option value="A">A · Classical BM25 baseline</option>
-            <option value="B">B · Flat MiniLM vector RAG</option>
-            <option value="C" selected>C · Full ontology GraphRAG</option>
-            <option value="D">D · GraphRAG with raw reviews</option>
-            <option value="E">E · GraphRAG without sentiment ranking</option>
-          </select>
-        </label>
-        <button id="submit" class="primary" type="submit">Find vehicles</button>
+
+        <div class="search-actions">
+          <button id="submit" class="primary" type="submit">Find vehicles</button>
+          <button id="reset-button" class="secondary" type="button">Reset</button>
+        </div>
       </form>
 
       <p id="status" class="status" role="status"></p>
+      <section id="clarification-panel" class="clarification-panel" aria-live="polite" hidden></section>
       <section id="summary" class="summary" hidden></section>
       <section id="results" class="results" aria-live="polite"></section>
     </main>
 
     <template id="candidate-template">
       <article class="candidate">
-        <div class="candidate-heading">
-          <div>
+        <div class="candidate-header">
+          <div class="candidate-title-group">
             <span class="rank"></span>
-            <h2 class="vehicle-name"></h2>
+            <div>
+              <div class="name-tier-row">
+                <h2 class="vehicle-name"></h2>
+                <span class="tier-pill"></span>
+              </div>
+              <p class="vehicle-subline"></p>
+            </div>
           </div>
-          <div class="score"></div>
+          <div class="candidate-metrics">
+            <div class="price-mileage">
+              <strong class="asking-price"></strong>
+              <span class="mileage-readout"></span>
+            </div>
+            <div class="score-badge"></div>
+          </div>
         </div>
-        <div class="facts"></div>
+
+        <div class="spec-row">
+          <div class="spec-pills"></div>
+          <a class="source-link" target="_blank" rel="noreferrer">View listing ↗</a>
+        </div>
+
         <div class="aspect-bars"></div>
-        <div class="sections"></div>
-        <a class="source-link" target="_blank" rel="noreferrer">View listing</a>
+
+        <div class="summary-columns">
+          <section class="summary-col summary-col--pros">
+            <h3>Why it fits</h3>
+            <ul class="pros-list"></ul>
+          </section>
+          <section class="summary-col summary-col--cautions">
+            <h3>Trade-offs &amp; Recall Cautions</h3>
+            <ul class="cautions-list"></ul>
+          </section>
+        </div>
+
+        <details class="evidence-drawer">
+          <summary class="evidence-drawer-summary"></summary>
+          <div class="evidence-drawer-body">
+            <div class="drawer-tabs" role="tablist"></div>
+            <div class="drawer-panels"></div>
+          </div>
+        </details>
       </article>
     </template>
 

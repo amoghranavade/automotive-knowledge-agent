@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
-from rdflib.namespace import PROV, SH, XSD
+from rdflib.namespace import PROV, XSD
 
 from .build import build_graph
 
@@ -41,6 +42,22 @@ SCHEMA_PROPERTIES = {
     ("SourceDocument", "captured_at"): PROV.generatedAtTime,
 }
 
+GRANULARITY_RELATIONS = {
+    "HAS_REVIEW",
+    "AFFECTED_BY",
+    "HAS_RATING",
+    "COMPATIBLE_WITH",
+    "RELATED_PRODUCT",
+}
+
+
+def _safe_uri(namespace: Namespace, raw_id: Any) -> URIRef:
+    return namespace[quote(str(raw_id), safe="-._~")]
+
+
+def _safe_url_ref(value: Any) -> URIRef:
+    return URIRef(quote(str(value).strip(), safe=":/?&=#%-._~"))
+
 
 def catalog_to_rdf(catalog: dict[str, Any]) -> Graph:
     graph = Graph()
@@ -49,24 +66,34 @@ def catalog_to_rdf(catalog: dict[str, Any]) -> Graph:
     graph.bind("prov", PROV)
     built = build_graph(catalog)
     for node in built["nodes"]:
-        subject = CLICKLESS[node["id"]]
-        graph.add((subject, RDF.type, LABEL_CLASS.get(node["label"], CLICKLESS[node["label"]])))
+        subject = _safe_uri(CLICKLESS, node["id"])
+        rdf_class = LABEL_CLASS.get(node["label"]) or _safe_uri(CLICKLESS, node["label"])
+        graph.add((subject, RDF.type, rdf_class))
         for key, value in node["properties"].items():
             if value is None or isinstance(value, (list, dict)):
                 continue
-            graph.add((subject, CLICKLESS[key], _literal(value)))
+            graph.add((subject, _safe_uri(CLICKLESS, key), _literal(value)))
             standard_property = SCHEMA_PROPERTIES.get((node["label"], key))
             if standard_property is not None:
                 graph.add(
                     (
                         subject,
                         standard_property,
-                        URIRef(str(value)) if key in {"url", "source_url"} else _literal(value),
+                        _safe_url_ref(value) if key in {"url", "source_url"} else _literal(value),
                     )
                 )
     for edge in built["edges"]:
-        predicate = PROV.wasDerivedFrom if edge["relation"] == "WAS_DERIVED_FROM" else CLICKLESS[edge["relation"]]
-        graph.add((CLICKLESS[edge["start"]], predicate, CLICKLESS[edge["end"]]))
+        start_uri = _safe_uri(CLICKLESS, edge["start"])
+        end_uri = _safe_uri(CLICKLESS, edge["end"])
+        predicate = (
+            PROV.wasDerivedFrom
+            if edge["relation"] == "WAS_DERIVED_FROM"
+            else _safe_uri(CLICKLESS, edge["relation"])
+        )
+        graph.add((start_uri, predicate, end_uri))
+        granularity = (edge.get("properties") or {}).get("match_granularity")
+        if granularity and edge["relation"] in GRANULARITY_RELATIONS:
+            graph.add((end_uri, CLICKLESS.match_granularity, _literal(granularity)))
     return graph
 
 
@@ -96,6 +123,7 @@ def _literal(value: Any) -> Literal:
         return Literal(value, datatype=XSD.integer)
     if isinstance(value, float):
         return Literal(value, datatype=XSD.decimal)
-    if str(value).startswith("http"):
-        return Literal(str(value), datatype=XSD.anyURI)
-    return Literal(str(value))
+    text = str(value)
+    if text.startswith(("http://", "https://")):
+        return Literal(quote(text.strip(), safe=":/?&=#%-._~"), datatype=XSD.anyURI)
+    return Literal(text)

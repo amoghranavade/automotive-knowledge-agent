@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from copy import deepcopy
+from dataclasses import dataclass
+import re
 from typing import Any, Iterable
 
 
@@ -9,10 +10,62 @@ POLARITY_SCORE = {
     "positive": 1.0,
     "negative": 0.0,
     "neutral": 0.5,
+    "mixed": 0.5,
 }
 
+AUTOMOTIVE_LEXICON = {
+    "dependable": 2.2,
+    "bulletproof": 2.5,
+    "fuel-efficient": 2.0,
+    "affordable": 1.8,
+    "spacious": 1.8,
+    "smooth": 1.6,
+    "wore": -1.8,
+    "costly": -2.0,
+    "overpriced": -2.0,
+    "rust": -2.0,
+    "rusted": -2.2,
+    "leaking": -2.2,
+    "leak": -1.8,
+    "stalled": -2.2,
+    "jerky": -1.8,
+    "clunk": -1.6,
+    "recall": -1.2,
+    "unreliable": -2.5,
+    "breakdown": -2.4,
+    "high_mileage": -1.5,
+}
 
-def vader_labels(texts: Iterable[str]) -> list[str]:
+_CONTRASTIVE_RE = re.compile(r"\b(?:but|however|although|though|yet|while)\b", re.I)
+_LEADING_CONTRASTIVE_RE = re.compile(r"^\s*(?:although|though|while)\b", re.I)
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def _normalize_automotive_text(text: str) -> str:
+    normalized = re.sub(
+        r"\b(good|great|excellent|solid|nice)\s+(?:(?:gas|fuel)\s+)?(?:mileage|mpg)\b",
+        r"\1 fuel-efficient",
+        text,
+        flags=re.I,
+    )
+    return re.sub(r"\bhigh[-\s]+mileage\b", "high_mileage", normalized, flags=re.I)
+
+
+def _contrastive_clauses(sentence: str) -> list[str]:
+    stripped = sentence.strip()
+    if not stripped:
+        return []
+    if _LEADING_CONTRASTIVE_RE.match(stripped):
+        body = _LEADING_CONTRASTIVE_RE.sub("", stripped, count=1).strip(" ,;:")
+        if "," in body:
+            first, rest = body.split(",", 1)
+            parts = [first, *_CONTRASTIVE_RE.split(rest)]
+            return [part.strip(" ,;:") for part in parts if part.strip(" ,;:")]
+    parts = _CONTRASTIVE_RE.split(stripped)
+    return [part.strip(" ,;:") for part in parts if part.strip(" ,;:")]
+
+
+def _vader_analyzer() -> Any:
     try:
         from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     except ImportError as error:
@@ -20,10 +73,41 @@ def vader_labels(texts: Iterable[str]) -> list[str]:
             "VADER requires the ml dependencies: pip install -e '.[ml]'"
         ) from error
     analyzer = SentimentIntensityAnalyzer()
+    analyzer.lexicon.update(AUTOMOTIVE_LEXICON)
+    return analyzer
+
+
+def vader_labels(texts: Iterable[str]) -> list[str]:
+    analyzer = _vader_analyzer()
     labels = []
     for text in texts:
-        compound = analyzer.polarity_scores(text)["compound"]
-        labels.append("positive" if compound >= 0.05 else "negative" if compound <= -0.05 else "neutral")
+        normalized = _normalize_automotive_text(str(text or ""))
+        is_mixed = False
+        sentences = [item.strip() for item in _SENTENCE_SPLIT_RE.split(normalized) if item.strip()]
+        clause_groups = [_contrastive_clauses(sentence) for sentence in sentences]
+        if len(sentences) > 1 and _CONTRASTIVE_RE.search(normalized):
+            clause_groups.append(
+                [part.strip(" ,;:") for part in _CONTRASTIVE_RE.split(normalized) if part.strip(" ,;:")]
+            )
+        for clauses in clause_groups:
+            if len(clauses) >= 2:
+                compounds = [analyzer.polarity_scores(clause)["compound"] for clause in clauses]
+                if any(score >= 0.05 for score in compounds) and any(
+                    score <= -0.05 for score in compounds
+                ):
+                    is_mixed = True
+                    break
+        if is_mixed:
+            labels.append("mixed")
+            continue
+        compound = analyzer.polarity_scores(normalized)["compound"]
+        labels.append(
+            "positive"
+            if compound >= 0.05
+            else "negative"
+            if compound <= -0.05
+            else "neutral"
+        )
     return labels
 
 
@@ -64,15 +148,19 @@ def apply_vader_aspects(vehicles: list[dict]) -> list[dict]:
                 span = str(assertion.get("span") or "").strip()
                 if span:
                     spans.append(span)
-                    targets.append((review, assertion["aspect"]))
+                    targets.append((review, assertion))
     if not spans:
         return updated
     grouped: dict[int, dict[str, list[float]]] = {}
     reviews: dict[int, dict] = {}
-    for (review, aspect), label in zip(targets, vader_labels(spans)):
+    for (review, assertion), label in zip(targets, vader_labels(spans)):
+        assertion["polarity"] = label
+        assertion["method"] = "vader"
         key = id(review)
         reviews[key] = review
-        grouped.setdefault(key, {}).setdefault(aspect, []).append(POLARITY_SCORE[label])
+        grouped.setdefault(key, {}).setdefault(assertion["aspect"], []).append(
+            POLARITY_SCORE[label]
+        )
     for key, values_by_aspect in grouped.items():
         review = reviews[key]
         review["aspects"] = {
