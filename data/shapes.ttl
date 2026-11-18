@@ -1,0 +1,18 @@
+@prefix clickless: <https://clickless.example.org/resource/> .
+@prefix schema: <https://schema.org/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+clickless:VehicleShape a sh:NodeShape ;
+  sh:targetClass schema:Vehicle ;
+  sh:property [ sh:path clickless:id ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:year ; sh:datatype xsd:integer ; sh:minInclusive 1980 ; sh:maxInclusive 2100 ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:make ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:model ; sh:minCount 1 ] .
+
+clickless:OfferShape a sh:NodeShape ;
+  sh:targetClass schema:Offer ;
+  sh:property [ sh:path clickless:price ; sh:minInclusive 1 ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:mileage ; sh:minInclusive 0 ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:source_url ; sh:minCount 1 ] ;
+  sh:property [ sh:path clickless:captured_at ; sh:minCount 1 ] .

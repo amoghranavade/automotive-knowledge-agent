@@ -211,6 +211,16 @@ tempCodeRunnerFile.py
 # PyPI configuration file
 .pypirc
 
+# ClickLess Automotive local and generated files
+.DS_Store
+tmp/
+data/cache/
+data/downloads/
+data/processed/
+data/neo4j/
+models/
+evaluation/output/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ClickLess Automotive</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">
+        <span class="brand-mark">C</span>
+        <span>ClickLess Automotive</span>
+      </a>
+      <span class="tagline">Vehicle recommendations with cited evidence</span>
+    </header>
+
+    <main>
+      <section class="intro">
+        <p class="eyebrow">Used-car research in one place</p>
+        <h1>Describe the vehicle you need</h1>
+        <p>Set a budget, body style, driving needs, safety priorities, or maintenance concerns.</p>
+      </section>
+
+      <p id="data-notice" class="data-summary">Loading data…</p>
+
+      <form id="search-form" class="search-panel">
+        <div class="request-heading">
+          <label for="query">Vehicle request</label>
+          <button id="voice-input" class="voice-button" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21H8v2h8v-2h-3v-2.08A7 7 0 0 0 19 12h-2Z"/>
+            </svg>
+            <span>Speak request</span>
+          </button>
+        </div>
+        <textarea id="query" name="query" rows="4" maxlength="1000" required>Find a reliable SUV under $18,000 with good safety ratings for snow driving and affordable brake maintenance.</textarea>
+        <p id="voice-status" class="voice-status" aria-live="polite" hidden></p>
+        <div class="examples" aria-label="Example searches">
+          <button type="button" data-query="Find a reliable SUV under $18,000 with good safety ratings for snow driving and affordable brake maintenance.">Snow-ready SUV</button>
+          <button type="button" data-query="Find an AWD SUV under $18,500 with low mileage and good reliability.">Lower-mileage SUV</button>
+          <button type="button" data-query="Find a fuel-efficient SUV under $19,000 with good cargo room and reliability.">Efficient SUV</button>
+        </div>
+        <div class="model-control">
+          <div class="request-toggles">
+            <label class="model-toggle" for="use-model">
+              <input id="use-model" type="checkbox" checked>
+            <span>Use {{ model_name }}</span>
+            </label>
+            <label class="model-toggle" for="live-nhtsa">
+              <input id="live-nhtsa" type="checkbox">
+              <span>Check live NHTSA recalls</span>
+            </label>
+          </div>
+          <span id="model-status" class="model-status">Checking model…</span>
+        </div>
+        <label class="configuration-control" for="configuration">
+          Evaluation configuration
+          <select id="configuration" name="configuration">
+            <option value="A">A · Classical BM25 baseline</option>
+            <option value="B">B · Flat MiniLM vector RAG</option>
+            <option value="C" selected>C · Full ontology GraphRAG</option>
+            <option value="D">D · GraphRAG with raw reviews</option>
+            <option value="E">E · GraphRAG without sentiment ranking</option>
+          </select>
+        </label>
+        <button id="submit" class="primary" type="submit">Find vehicles</button>
+      </form>
+
+      <p id="status" class="status" role="status"></p>
+      <section id="summary" class="summary" hidden></section>
+      <section id="results" class="results" aria-live="polite"></section>
+    </main>
+
+    <template id="candidate-template">
+      <article class="candidate">
+        <div class="candidate-heading">
+          <div>
+            <span class="rank"></span>
+            <h2 class="vehicle-name"></h2>
+          </div>
+          <div class="score"></div>
+        </div>
+        <div class="facts"></div>
+        <div class="aspect-bars"></div>
+        <div class="sections"></div>
+        <a class="source-link" target="_blank" rel="noreferrer">View listing</a>
+      </article>
+    </template>
+
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </body>
+</html>
