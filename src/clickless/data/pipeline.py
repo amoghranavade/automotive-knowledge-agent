@@ -403,7 +403,12 @@ def add_nhtsa(catalog: dict[str, Any]) -> tuple[int, int]:
     captured = datetime.now(timezone.utc).isoformat()
     for vehicle in catalog["vehicles"]:
         try:
-            rating = fetch_safety_rating(vehicle["make"], vehicle["model"], vehicle["year"])
+            rating = fetch_safety_rating(
+                vehicle["make"],
+                vehicle["model"],
+                vehicle["year"],
+                drivetrain=vehicle["drivetrain"],
+            )
         except NHTSAError:
             rating = None
         if rating:

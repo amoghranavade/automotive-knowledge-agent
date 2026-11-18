@@ -55,7 +55,7 @@
           <span id="model-status" class="model-status">Checking model…</span>
         </div>
         <label class="configuration-control" for="configuration">
-          Evaluation configuration
+          Evaluation mode (method ablation)
           <select id="configuration" name="configuration">
             <option value="A">A · Classical BM25 baseline</option>
             <option value="B">B · Flat MiniLM vector RAG</option>
@@ -64,10 +64,15 @@
             <option value="E">E · GraphRAG without sentiment ranking</option>
           </select>
         </label>
+        <label id="refine-control" class="model-toggle" for="refine" hidden>
+          <input id="refine" type="checkbox" checked>
+          <span>Treat this as an answer to the follow-up question</span>
+        </label>
         <button id="submit" class="primary" type="submit">Find vehicles</button>
       </form>
 
       <p id="status" class="status" role="status"></p>
+      <p id="notices" class="notices" hidden></p>
       <section id="summary" class="summary" hidden></section>
       <section id="results" class="results" aria-live="polite"></section>
     </main>
@@ -81,10 +86,15 @@
           </div>
           <div class="score"></div>
         </div>
+        <p class="method-line"></p>
         <div class="facts"></div>
         <div class="aspect-bars"></div>
         <div class="sections"></div>
-        <a class="source-link" target="_blank" rel="noreferrer">View listing</a>
+        <div class="candidate-actions">
+          <a class="source-link" target="_blank" rel="noreferrer">View listing</a>
+          <button class="live-check" type="button">Check live listings now</button>
+        </div>
+        <div class="live-results" hidden></div>
       </article>
     </template>
 

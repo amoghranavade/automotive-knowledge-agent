@@ -153,18 +153,27 @@ def refresh_serpapi(
     return added
 
 
-def refresh_ebay(catalog: dict, per_vehicle: int) -> int:
+def _title_matches(title: str, vehicle: dict) -> bool:
+    text = title.casefold()
+    return (
+        str(vehicle["year"]) in text
+        and vehicle["make"].casefold() in text
+        and vehicle["model"].casefold() in text
+    )
+
+
+def refresh_ebay(catalog: dict, per_vehicle: int, max_vehicles: int | None = None) -> int:
     client = EbayClient.from_env()
     if client is None:
         return 0
     added = 0
     existing = {item["id"] for item in catalog["listings"]}
     captured = datetime.now(timezone.utc).isoformat()
-    for vehicle in catalog["vehicles"]:
+    for vehicle in catalog["vehicles"][:max_vehicles]:
         query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']}"
-        for item in client.search(query, limit=per_vehicle * 3):
+        for item in client.search(query, limit=per_vehicle * 3, category_ids="6001"):
             mileage = item.attributes.get("mileage")
-            if item.price is None or mileage is None:
+            if item.price is None or mileage is None or not _title_matches(item.title, vehicle):
                 continue
             record_id = f"ebay-listing-{item.identifier}"
             if record_id in existing:
@@ -191,6 +200,23 @@ def refresh_ebay(catalog: dict, per_vehicle: int) -> int:
                 for listing in catalog["listings"]
             ) >= per_vehicle:
                 break
+    return added
+
+
+def refresh_walmart(catalog: dict, per_vehicle: int, max_vehicles: int | None = None) -> int:
+    client = SerpApiClient.from_env()
+    if client is None:
+        return 0
+    added = 0
+    for vehicle in catalog["vehicles"][:max_vehicles]:
+        query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']} battery brake pads wiper"
+        try:
+            offers = client.search_walmart(query, limit=per_vehicle)
+        except SourceError as error:
+            print(f"SerpApi Walmart {vehicle['id']}: {error}")
+            continue
+        for offer in offers:
+            added += int(_add_product(catalog, vehicle, offer))
     return added
 
 
@@ -242,7 +268,8 @@ def main() -> None:
         catalog, args.per_vehicle, max_vehicles
     )
     serpapi = refresh_serpapi(catalog, args.per_vehicle, max_vehicles)
-    ebay = refresh_ebay(catalog, args.per_vehicle)
+    ebay = refresh_ebay(catalog, args.per_vehicle, max_vehicles)
+    walmart = refresh_walmart(catalog, args.per_vehicle, max_vehicles)
     bestbuy = refresh_bestbuy(catalog, args.per_vehicle)
     live_source_names = {
         item["source_name"]
@@ -266,7 +293,7 @@ def main() -> None:
     output.write_text(json.dumps(catalog, indent=2), encoding="utf-8")
     print(
         f"Added {inventory} live vehicle listings, {serpapi} SerpApi products, "
-        f"{ebay} eBay listings, and {bestbuy} Best Buy products."
+        f"{ebay} eBay listings, {walmart} Walmart products, and {bestbuy} Best Buy products."
     )
 
 

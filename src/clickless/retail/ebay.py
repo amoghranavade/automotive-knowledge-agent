@@ -37,10 +37,15 @@ class EbayClient:
             return None
         return cls(client_id, secret, os.getenv("EBAY_MARKETPLACE_ID", "EBAY_US"))
 
-    def search(self, query: str, limit: int = 20) -> list[RetailResult]:
+    def search(
+        self, query: str, limit: int = 20, category_ids: str | None = None
+    ) -> list[RetailResult]:
+        params: dict[str, Any] = {"q": query, "limit": min(max(limit, 1), 200)}
+        if category_ids:
+            params["category_ids"] = category_ids  # 6001 = eBay Motors Cars & Trucks
         response = requests.get(
             self.SEARCH_URL,
-            params={"q": query, "limit": min(max(limit, 1), 200)},
+            params=params,
             headers={
                 "Authorization": f"Bearer {self._access_token()}",
                 "X-EBAY-C-MARKETPLACE-ID": self.marketplace_id,

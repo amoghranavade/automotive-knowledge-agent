@@ -125,6 +125,15 @@ One-page Playwright capture with JSON-LD extraction is available for permitted r
 clickless-crawl ebay "2009 Subaru Forester"
 ```
 
+Import pages captured with `clickless-crawl` into the catalog (they appear as `Live capture` records):
+
+```bash
+clickless-crawl walmart "2009 Toyota RAV4 battery"
+python scripts/import_captures.py
+```
+
+During the demo, each recommended car has a **Check live listings now** button. It queries MarketCheck, Auto.dev, and eBay (whichever keys are set) for that exact year, make, and model and shows the results with a timestamp.
+
 ## Neo4j and RDF
 
 Start Neo4j and load the catalog:
@@ -143,6 +152,13 @@ python scripts/export_rdf.py
 ```
 
 The Turtle export is written to `data/processed/clickless.ttl` and checked against `data/shapes.ttl`.
+
+## Tests
+
+```bash
+pip install -e '.[dev]'
+PYTHONPATH=src pytest -q
+```
 
 ## Evaluation
 
@@ -168,6 +184,8 @@ After both judges fill `human_judgments.csv`, calculate Precision@5, nDCG@5, Coh
 ```bash
 clickless-analyze-evaluation
 ```
+
+The runner also scores 10 unanswerable scenarios (abstention accuracy), gold-slot constraint satisfaction, and cohort retention. Add `--use-model` to `clickless-analyze-evaluation` to score Qwen ABSA against the annotated test sentences.
 
 Generate the 50-query slot-parser benchmark, a 100-link graph audit sheet, SHACL status, and the web-extraction audit from captured retail pages:
 

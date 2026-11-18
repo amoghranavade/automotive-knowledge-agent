@@ -116,6 +116,7 @@ def apply_model_aspects(
     )
     review_text = {item["source_id"]: item["text"] for item in reviews}
     extracted: dict[str, dict[str, list[float]]] = {}
+    assertions_by_review: dict[str, list[dict[str, Any]]] = {}
     for start in range(0, len(reviews), 24):
         user = json.dumps(
             {
@@ -169,6 +170,15 @@ def apply_model_aspects(
                 extracted.setdefault(source_id, {}).setdefault(aspect, []).append(
                     POLARITY_SCORE[polarity]
                 )
+                assertions_by_review.setdefault(source_id, []).append(
+                    {
+                        "aspect": aspect,
+                        "subsystem": subsystem,
+                        "polarity": polarity,
+                        "span": span,
+                        "method": "qwen",
+                    }
+                )
 
     updated = deepcopy(vehicles)
     for vehicle in updated:
@@ -179,6 +189,7 @@ def apply_model_aspects(
                     name: round(sum(values) / len(values), 4)
                     for name, values in aspects.items()
                 }
+                review["aspect_assertions"] = assertions_by_review.get(review["source_id"], [])
                 review["aspect_method"] = "qwen"
     return updated
 

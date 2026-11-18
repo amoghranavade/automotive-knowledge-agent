@@ -36,6 +36,7 @@ def fetch_safety_rating(
     model: str,
     year: int,
     timeout: float = 8.0,
+    drivetrain: str | None = None,
 ) -> dict[str, Any] | None:
     lookup_url = (
         f"{RATINGS_ENDPOINT}/modelyear/{year}/make/{quote(make)}/"
@@ -45,7 +46,8 @@ def fetch_safety_rating(
     matches = lookup.get("Results") or lookup.get("results") or []
     if not isinstance(matches, list) or not matches:
         return None
-    vehicle_id = matches[0].get("VehicleId") or matches[0].get("vehicleId")
+    chosen = _match_drivetrain(matches, drivetrain)
+    vehicle_id = chosen.get("VehicleId") or chosen.get("vehicleId")
     if not vehicle_id:
         return None
     detail = _get_json(f"{RATINGS_ENDPOINT}/VehicleId/{vehicle_id}?format=json", timeout)
@@ -63,6 +65,23 @@ def fetch_safety_rating(
         "source_url": f"https://www.nhtsa.gov/vehicle/{year}/{quote(make)}/{quote(model)}",
         "captured_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+DRIVETRAIN_TOKENS = {
+    "AWD": ("AWD", "4WD"),
+    "4WD": ("4WD", "AWD"),
+    "FWD": ("FWD", "2WD"),
+    "RWD": ("RWD", "2WD"),
+}
+
+
+def _match_drivetrain(matches: list[dict[str, Any]], drivetrain: str | None) -> dict[str, Any]:
+    for token in DRIVETRAIN_TOKENS.get(str(drivetrain or "").upper(), ()):
+        for item in matches:
+            description = str(item.get("VehicleDescription") or "").upper()
+            if token in description.split() or f" {token}" in description:
+                return item
+    return matches[0]
 
 
 def _get_json(url: str, timeout: float) -> dict[str, Any]:

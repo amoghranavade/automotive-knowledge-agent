@@ -12,6 +12,11 @@ const statusBox = document.querySelector("#status");
 const summary = document.querySelector("#summary");
 const results = document.querySelector("#results");
 const template = document.querySelector("#candidate-template");
+const notices = document.querySelector("#notices");
+const refineControl = document.querySelector("#refine-control");
+const refineToggle = document.querySelector("#refine");
+let previousQuery = "";
+let awaitingAnswer = false;
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -45,7 +50,7 @@ form.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
-        query: queryInput.value.trim(),
+        query: buildQuery(),
         use_model: modelToggle.checked,
         live_nhtsa: liveNhtsaToggle.checked,
         configuration: configuration.value,
@@ -64,6 +69,14 @@ form.addEventListener("submit", async (event) => {
     setLoading(false);
   }
 });
+
+function buildQuery() {
+  const text = queryInput.value.trim();
+  if (awaitingAnswer && refineToggle.checked && previousQuery) {
+    return `${previousQuery} ${text}`.slice(0, 1000);
+  }
+  return text;
+}
 
 function setLoading(loading) {
   submitButton.disabled = loading;
@@ -138,6 +151,8 @@ function setupVoiceInput() {
 
 function clearOutput() {
   statusBox.classList.remove("error");
+  notices.hidden = true;
+  notices.textContent = "";
   summary.hidden = true;
   summary.replaceChildren();
   results.replaceChildren();
@@ -147,6 +162,14 @@ function render(data) {
   const candidates = data.candidates || data.recommendations || [];
   const questions = data.clarification_questions || [];
   renderSummary(data.parsed || data.constraints || {});
+  previousQuery = data.query || "";
+  awaitingAnswer = questions.length > 0;
+  refineControl.hidden = !awaitingAnswer;
+  const noticeText = [data.model_notice, data.data_notice].filter(Boolean).join(" ");
+  if (noticeText) {
+    notices.textContent = noticeText;
+    notices.hidden = false;
+  }
 
   if (!candidates.length) {
     statusBox.textContent = questions.length
@@ -164,7 +187,7 @@ function render(data) {
     clarification.textContent = `Optional follow-up: ${questions.join(" ")}`;
     statusBox.append(document.createElement("br"), clarification);
   }
-  candidates.forEach((candidate, index) => renderCandidate(candidate, index));
+  candidates.forEach((candidate, index) => renderCandidate(candidate, index, data));
 }
 
 async function loadModelStatus() {
@@ -199,7 +222,21 @@ function renderSummary(parsed) {
   summary.hidden = false;
 }
 
-function renderCandidate(candidate, index) {
+function methodLine(candidate, data) {
+  const stages = data.model_stages || {};
+  const backend = (candidate.graph_paths || [])[0]?.backend;
+  const parts = [
+    `Config ${data.configuration || "C"}`,
+    `Parsing: ${stages.parsing || "rules"}`,
+    `Aspects: ${stages.review_extraction || "lexicon"}`,
+    `Retrieval: ${candidate.retrieval_mode || "n/a"}`,
+    backend ? `Graph: ${backend}` : "Graph: off",
+    `Summaries: ${stages.summaries || "templates"}`,
+  ];
+  return parts.join(" · ");
+}
+
+function renderCandidate(candidate, index, data = {}) {
   const node = template.content.cloneNode(true);
   const vehicle = candidate.vehicle || candidate;
   const listing = candidate.listing || vehicle.listing || {};
@@ -210,6 +247,7 @@ function renderCandidate(candidate, index) {
   node.querySelector(".rank").textContent = candidate.rank || index + 1;
   node.querySelector(".vehicle-name").textContent = vehicleName(vehicle);
   node.querySelector(".score").textContent = formatScore(candidate.score);
+  node.querySelector(".method-line").textContent = methodLine(candidate, data);
 
   const facts = node.querySelector(".facts");
   addFact(facts, "Price", listing.price ?? vehicle.price, money);
@@ -228,7 +266,17 @@ function renderCandidate(candidate, index) {
   addSection(sections, "Unmet constraints", candidate.constraint_violations || [], evidenceById);
   addSection(sections, "Evidence", candidate.review_evidence || evidence, evidenceById);
   addSection(sections, "Recall cautions", candidate.cautions || safety.cautions || safety.recalls || [], evidenceById);
+  addSection(sections, "Pros and cons by aspect", bundleItems(candidate.aspect_bundles || []), evidenceById);
   addSection(sections, "Graph paths", candidate.graph_paths || [], evidenceById);
+  addSection(
+    sections,
+    "Retrieved passages",
+    (candidate.retrieved_passages || []).slice(0, 3).map((item) => ({
+      text: `${item.text.slice(0, 180)}${item.text.length > 180 ? "…" : ""} (score ${item.score.toFixed(2)})`,
+      evidence_ids: [item.evidence_id],
+    })),
+    evidenceById,
+  );
   addSection(sections, "Missing evidence", candidate.missing_evidence || [], evidenceById);
 
   const source = node.querySelector(".source-link");
@@ -243,7 +291,69 @@ function renderCandidate(candidate, index) {
     source.remove();
   }
 
+  const liveButton = node.querySelector(".live-check");
+  const liveBox = node.querySelector(".live-results");
+  liveButton.addEventListener("click", () => liveCheck(candidate.id, liveButton, liveBox));
+
   results.append(node);
+}
+
+function bundleItems(bundles) {
+  const items = [];
+  bundles.forEach((bundle) => {
+    const name = label(bundle.aspect);
+    if (bundle.positive) items.push({ text: `${name} +: “${bundle.positive.text}”`, evidence_ids: bundle.positive.evidence_ids });
+    if (bundle.negative) items.push({ text: `${name} −: “${bundle.negative.text}”`, evidence_ids: bundle.negative.evidence_ids });
+  });
+  return items;
+}
+
+async function liveCheck(vehicleId, button, box) {
+  button.disabled = true;
+  button.textContent = "Checking marketplaces…";
+  box.hidden = false;
+  box.replaceChildren();
+  try {
+    const response = await fetch("/api/live-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vehicle_id: vehicleId }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Live check failed.");
+    const heading = document.createElement("p");
+    heading.className = "live-heading";
+    const when = new Date(data.checked_at).toLocaleTimeString();
+    heading.textContent = data.message
+      || `Checked ${data.sources.join(", ")} at ${when} · ${data.listings.length} listing(s)`;
+    box.append(heading);
+    const list = document.createElement("ul");
+    data.listings.forEach((item) => {
+      const entry = document.createElement("li");
+      const price = item.price != null ? money.format(item.price) : "price n/a";
+      const miles = item.mileage != null ? ` · ${number.format(item.mileage)} mi` : "";
+      entry.append(`${item.source}: ${item.title} — ${price}${miles} `);
+      const link = document.createElement("a");
+      link.href = item.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = "Open";
+      entry.append(link);
+      list.append(entry);
+    });
+    box.append(list);
+    (data.errors || []).forEach((message) => {
+      const error = document.createElement("p");
+      error.className = "live-error";
+      error.textContent = message;
+      box.append(error);
+    });
+  } catch (error) {
+    box.textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Check live listings now";
+  }
 }
 
 function renderAspectBars(container, components) {
@@ -285,7 +395,11 @@ async function loadDataStatus() {
     const data = await response.json();
     if (!response.ok || !data.ready) throw new Error(data.error || "Data unavailable");
     const counts = data.counts;
-    dataNotice.textContent = `${counts.vehicles} vehicle variants · ${number.format(counts.listings)} listings · ${number.format(counts.reviews)} reviews · ${counts.recalls} recalls`;
+    const live = Object.entries(data.connectors || {})
+      .filter(([, on]) => on)
+      .map(([name]) => name)
+      .join(", ");
+    dataNotice.textContent = `${counts.vehicles} vehicle variants · ${number.format(counts.listings)} listings · ${number.format(counts.reviews)} reviews · ${counts.recalls} recalls${live ? ` · Live sources: ${live}` : ""}`;
   } catch (error) {
     dataNotice.textContent = error.message;
     dataNotice.classList.add("error");

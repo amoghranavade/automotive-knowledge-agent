@@ -12,7 +12,7 @@ from .llm import (
 from .data.repository import load_catalog
 from .graph import retrieve_evidence_paths
 from .parser import parse
-from .ranking import rank_closest_vehicles, rank_vehicles
+from .ranking import filter_vehicles, rank_closest_vehicles, rank_vehicles
 from .retrieval import retrieve_passages
 from .sentiment import apply_vader_aspects
 from .store import data_snapshot, load_vehicles, with_live_recalls
@@ -173,6 +173,7 @@ def _candidate(
             }
         )
     candidate = {
+        "aspect_bundles": _aspect_bundles(vehicle, evidence),
         "id": vehicle["id"],
         "year": vehicle["year"],
         "make": vehicle["make"],
@@ -246,7 +247,7 @@ def recommend(
     if configuration == "E":
         constraints = _without_sentiment_weights(constraints)
 
-    if client is not None and configuration in {"C", "D"}:
+    if client is not None and configuration in {"B", "C", "D", "E"}:
         preliminary = rank_vehicles(vehicles, constraints)
         if not preliminary:
             preliminary = rank_closest_vehicles(vehicles, constraints)
@@ -260,6 +261,8 @@ def recommend(
             model_notices.append(f"Review aspects used stored evidence. {error}")
 
     ranked = rank_vehicles(vehicles, constraints)
+    feasible = len(filter_vehicles(vehicles, constraints))
+    fully_scored = sum(not item[3] for item in ranked)
     match_mode = "exact"
     if ranked:
         ranked = _top_distinct(ranked, candidate_limit)
@@ -287,6 +290,8 @@ def recommend(
         ]
     catalog = load_catalog()
     for candidate in candidates:
+        if configuration not in {"C", "E"}:
+            candidate["aspect_bundles"] = []
         if configuration == "A":
             candidate["retrieved_passages"] = retrieve_passages(
                 query, candidate["evidence"], "bm25"
@@ -364,7 +369,13 @@ def recommend(
         "data_notice": snapshot.get("notice"),
         "model_mode": model_mode,
         "model_name": client.model if client is not None else None,
-        "model_notice": " ".join(model_notices) or None,
+        "model_notice": " ".join(dict.fromkeys(model_notices)) or None,
+        "abstained": match_mode != "exact",
+        "cohort": {
+            "feasible": feasible,
+            "fully_scored": fully_scored,
+            "retention": round(fully_scored / feasible, 4) if feasible else None,
+        },
         "model_stages": model_stages,
         "configuration": configuration,
     }
@@ -438,3 +449,36 @@ def _lineage_paths(candidate: dict[str, Any], backend: str) -> list[dict[str, An
         for item in candidate["evidence"]
         if item["type"] == "review" and item["indirect"]
     ][:2]
+
+
+ASPECT_NAMES = ("reliability", "maintenance", "fuel_economy", "cargo")
+
+
+def _aspect_bundles(
+    vehicle: dict[str, Any], evidence: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Slide 6, query 3: one supporting and one opposing span per aspect."""
+    cited = {item["id"] for item in evidence if item["type"] == "review" and not item["indirect"]}
+    reviews = [
+        review
+        for review in vehicle.get("reviews", [])
+        if review.get("match_type") == "exact_year" and review["source_id"] in cited
+    ]
+    qwen = [review for review in reviews if review.get("aspect_method") == "qwen"]
+    reviews = qwen or reviews
+    bundles = []
+    for aspect in ASPECT_NAMES:
+        bundle: dict[str, Any] = {"aspect": aspect, "positive": None, "negative": None}
+        for review in reviews:
+            for assertion in review.get("aspect_assertions", []):
+                if assertion.get("aspect") != aspect:
+                    continue
+                side = assertion.get("polarity")
+                if side in {"positive", "negative"} and bundle[side] is None:
+                    bundle[side] = {
+                        "text": str(assertion.get("span") or "")[:240],
+                        "evidence_ids": [review["source_id"]],
+                    }
+        if bundle["positive"] or bundle["negative"]:
+            bundles.append(bundle)
+    return bundles

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 from .models import Constraints
@@ -33,14 +34,18 @@ def _aspect(vehicle: dict[str, Any], name: str) -> float | None:
     ]
     qwen_reviews = [review for review in exact_reviews if review.get("aspect_method") == "qwen"]
     selected = qwen_reviews or exact_reviews
-    values = [
-        review["aspects"][name]
+    counts = Counter(
+        assertion.get("polarity")
         for review in selected
-        if name in review.get("aspects", {})
-    ]
-    if not values:
-        return None
-    return sum(values) / len(values)
+        for assertion in review.get("aspect_assertions", [])
+        if assertion.get("aspect") == name
+    )
+    total = sum(counts.values())
+    if not total:
+        return None  # no spans -> unknown, not 0.5
+    # Slide 7: A = (n+ - n-) / (n+ + n- + n0 + nm + 1); score = (A + 1) / 2
+    balance = (counts["positive"] - counts["negative"]) / (total + 1)
+    return round((balance + 1) / 2, 4)
 
 
 def score_vehicle(

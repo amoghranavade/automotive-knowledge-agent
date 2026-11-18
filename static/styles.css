@@ -459,3 +459,12 @@ textarea:focus {
     flex-direction: column;
   }
 }
+
+.method-line { margin: 4px 0 8px; font-size: 0.8rem; color: #5b6472; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.notices { margin: 8px 0; padding: 8px 12px; border-left: 3px solid #d9a400; background: #fff8e1; font-size: 0.9rem; }
+.candidate-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.live-check { padding: 6px 12px; border: 1px solid #1f6feb; border-radius: 6px; background: #fff; color: #1f6feb; cursor: pointer; }
+.live-check:disabled { opacity: 0.6; cursor: wait; }
+.live-results { margin-top: 10px; padding: 10px 12px; background: #f4f7fb; border-radius: 6px; font-size: 0.9rem; }
+.live-heading { font-weight: 600; margin: 0 0 6px; }
+.live-error { color: #b42318; margin: 4px 0 0; }

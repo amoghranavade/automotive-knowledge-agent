@@ -12,14 +12,14 @@ from typing import Any
 from clickless.config import settings
 from clickless.data import load_catalog
 from clickless.evaluation.metrics import citation_coverage
-from clickless.evaluation.scenarios import default_scenarios
+from clickless.evaluation.scenarios import default_scenarios, unanswerable_scenarios
 from clickless.service import recommend
 
 
 def run(configurations: str, use_model: bool, output: Path) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
     records = []
-    for scenario in default_scenarios():
+    for scenario in default_scenarios() + unanswerable_scenarios():
         for configuration in configurations:
             start = time.perf_counter()
             result = recommend(
@@ -38,7 +38,11 @@ def run(configurations: str, use_model: bool, output: Path) -> dict[str, Any]:
                     "configuration": configuration,
                     "latency_seconds": round(latency, 6),
                     "citation_coverage": citation_coverage(result["candidates"]),
+                    "answerable": scenario["answerable"],
                     "constraint_satisfied": result["match_mode"] == "exact",
+                    "gold_constraint_rate": _gold_rate(result["candidates"][:3], scenario["gold"]),
+                    "abstained": result["abstained"],
+                    "cohort_retention": result["cohort"]["retention"],
                     "candidate_ids": [item["id"] for item in result["candidates"]],
                     "result": result,
                 }
@@ -48,11 +52,14 @@ def run(configurations: str, use_model: bool, output: Path) -> dict[str, Any]:
     with results_path.open("w", encoding="utf-8") as handle:
         for record in records:
             handle.write(json.dumps(record) + "\n")
-    _write_judging_template(records, output / "human_judgments.csv")
+    answerable = [record for record in records if record["answerable"]]
+    unanswerable = [record for record in records if not record["answerable"]]
+    records_for_judging = answerable
+    _write_judging_template(records_for_judging, output / "human_judgments.csv")
     blinding_key = json.loads((output / "blinding_key.json").read_text(encoding="utf-8"))
     system_labels = {configuration: label for label, configuration in blinding_key.items()}
-    _write_citation_audit(records, system_labels, output / "citation_audit.csv")
-    _write_explanation_ratings(records, system_labels, output / "explanation_ratings.csv")
+    _write_citation_audit(answerable, system_labels, output / "citation_audit.csv")
+    _write_explanation_ratings(answerable, system_labels, output / "explanation_ratings.csv")
     _write_absa_template(output / "absa_annotations.csv")
 
     latencies = [record["latency_seconds"] for record in records]
@@ -61,12 +68,39 @@ def run(configurations: str, use_model: bool, output: Path) -> dict[str, Any]:
         "configurations": list(configurations),
         "median_latency_seconds": median(latencies),
         "p95_latency_seconds": sorted(latencies)[int(len(latencies) * 0.95) - 1],
-        "constraint_satisfaction": sum(record["constraint_satisfied"] for record in records) / len(records),
+        "constraint_satisfaction": _mean(
+            [record["gold_constraint_rate"] for record in answerable if record["gold_constraint_rate"] is not None]
+        ),
+        "exact_match_available": _mean([float(record["constraint_satisfied"]) for record in answerable]),
+        "abstention_accuracy": _mean([float(record["abstained"]) for record in unanswerable]),
+        "false_abstention_rate": _mean([float(record["abstained"]) for record in answerable]),
+        "cohort_retention": _mean(
+            [record["cohort_retention"] for record in answerable if record["cohort_retention"] is not None]
+        ),
         "citation_coverage": sum(record["citation_coverage"] for record in records) / len(records),
         "human_metrics_pending": True,
     }
     (output / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
+
+
+def _mean(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 4) if values else None
+
+
+def _gold_rate(candidates: list[dict[str, Any]], gold: dict[str, Any]) -> float | None:
+    """Share of shown cars that satisfy the scenario's gold hard constraints."""
+    if not candidates or not gold:
+        return None
+    satisfied = 0
+    for candidate in candidates:
+        ok = True
+        if gold.get("max_price") is not None and candidate["price"] > gold["max_price"]:
+            ok = False
+        if gold.get("body_style") and candidate["body_style"] != gold["body_style"]:
+            ok = False
+        satisfied += ok
+    return satisfied / len(candidates)
 
 
 def _write_judging_template(records: list[dict[str, Any]], path: Path) -> None:
@@ -102,53 +136,54 @@ def _write_judging_template(records: list[dict[str, Any]], path: Path) -> None:
 
 
 def _write_absa_template(path: Path) -> None:
+    """300 review SENTENCES (180 train / 60 dev / 60 test), first 120 double-annotated."""
+    import re
+
+    from clickless.data.aspects import ASPECT_TERMS, SUBSYSTEM_TERMS
+
+    terms = {term for group in (*ASPECT_TERMS.values(), *SUBSYSTEM_TERMS.values()) for term in group}
     catalog = load_catalog()
-    owner = [item for item in catalog["reviews"] if item.get("source_kind") == "owner_review"]
-    product = [item for item in catalog["reviews"] if item.get("source_kind") == "product_review"]
+    pools: dict[str, list[tuple[str, str, str]]] = {"owner_review": [], "product_review": []}
+    for review in catalog["reviews"]:
+        kind = review.get("source_kind", "owner_review")
+        sentences = re.split(r"(?<=[.!?])\s+", str(review.get("text") or ""))
+        for index, sentence in enumerate(sentences):
+            sentence = sentence.strip()
+            if 20 <= len(sentence) <= 400 and any(term in sentence.casefold() for term in terms):
+                pools.setdefault(kind, []).append(
+                    (f"{review['source_id']}#s{index}", review["source_id"], sentence)
+                )
     generator = random.Random(42)
-    product_sample = generator.sample(product, min(50, len(product)))
-    owner_sample = generator.sample(owner, min(300 - len(product_sample), len(owner)))
-    selected = owner_sample + product_sample
-    generator.shuffle(selected)
-    rows = [
-        (
-            review["source_id"],
-            str(review.get("text") or "").strip()[:1_500],
-            review.get("source_kind", "owner_review"),
-        )
-        for review in selected
-        if str(review.get("text") or "").strip()
-    ][:300]
+    product_sample = generator.sample(pools["product_review"], min(50, len(pools["product_review"])))
+    owner_sample = generator.sample(
+        pools["owner_review"], min(300 - len(product_sample), len(pools["owner_review"]))
+    )
+    rows = [(item, "owner_review") for item in owner_sample] + [
+        (item, "product_review") for item in product_sample
+    ]
+    generator.shuffle(rows)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["source_id", "text", "source_kind", "split", "aspect", "subsystem", "polarity", "annotator", "double_annotated"],
+            fieldnames=[
+                "sentence_id", "source_id", "text", "source_kind", "split",
+                "aspect", "subsystem", "polarity", "span", "annotator", "double_annotated",
+            ],
         )
         writer.writeheader()
-        for index, (source_id, text, source_kind) in enumerate(rows):
-            double = index < 120
+        for index, ((sentence_id, source_id, text), kind) in enumerate(rows[:300]):
             split = "train" if index < 180 else "development" if index < 240 else "test"
-            writer.writerow(
-                {
-                    "source_id": source_id,
-                    "text": text,
-                    "source_kind": source_kind,
-                    "split": split,
-                    "annotator": "1",
-                    "double_annotated": double,
-                }
-            )
-            if double:
-                writer.writerow(
-                    {
-                        "source_id": source_id,
-                        "text": text,
-                        "source_kind": source_kind,
-                        "split": split,
-                        "annotator": "2",
-                        "double_annotated": True,
-                    }
-                )
+            base = {
+                "sentence_id": sentence_id,
+                "source_id": source_id,
+                "text": text,
+                "source_kind": kind,
+                "split": split,
+                "double_annotated": index < 120,
+            }
+            writer.writerow({**base, "annotator": "1"})
+            if index < 120:
+                writer.writerow({**base, "annotator": "2"})
 
 
 def _write_citation_audit(

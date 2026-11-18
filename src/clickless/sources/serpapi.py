@@ -49,6 +49,52 @@ class SerpApiClient:
                 offers.append(parsed)
         return offers
 
+    def search_walmart(self, query: str, limit: int = 5) -> list[ProductOffer]:
+        try:
+            response = requests.get(
+                self.ENDPOINT,
+                params={"engine": "walmart", "query": query, "api_key": self.api_key},
+                timeout=self.timeout,
+            )
+        except requests.RequestException as error:
+            raise SourceError(f"SerpApi Walmart request failed: {error}") from error
+        if response.status_code >= 400:
+            raise SourceError(f"SerpApi Walmart returned HTTP {response.status_code}")
+        payload = response.json()
+        if payload.get("error"):
+            raise SourceError(f"SerpApi error: {payload['error']}")
+        captured_at = datetime.now(timezone.utc).isoformat()
+        offers = []
+        for item in payload.get("organic_results", [])[: max(limit, 1)]:
+            parsed = _walmart_offer(item, captured_at)
+            if parsed is not None:
+                offers.append(parsed)
+        return offers
+
+
+def _walmart_offer(item: dict[str, Any], captured_at: str) -> ProductOffer | None:
+    # Field names follow SerpApi's Walmart engine; check them against one real response.
+    offer = item.get("primary_offer") or {}
+    price = _float(offer.get("offer_price") or item.get("price"))
+    url = str(item.get("product_page_url") or item.get("link") or "").strip()
+    identifier = str(item.get("us_item_id") or item.get("product_id") or url).strip()
+    title = str(item.get("title") or "").strip()
+    if price is None or not all((url, identifier, title)):
+        return None
+    return ProductOffer(
+        source="SerpApi Walmart",
+        identifier=identifier,
+        title=title,
+        price=price,
+        url=url,
+        merchant="Walmart",
+        rating=_float(item.get("rating")),
+        review_count=_integer(item.get("reviews")),
+        review_texts=(),
+        captured_at=captured_at,
+        attributes={"seller": item.get("seller_name")},
+    )
+
 
 def _offer(item: dict[str, Any], captured_at: str) -> ProductOffer | None:
     price = _float(item.get("extracted_price"))

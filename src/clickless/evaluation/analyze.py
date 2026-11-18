@@ -23,7 +23,7 @@ def _score(value: str) -> int | None:
     return score
 
 
-def analyze(path: Path) -> dict[str, Any]:
+def analyze(path: Path, use_model: bool = False) -> dict[str, Any]:
     judgments = path / "human_judgments.csv"
     rows = list(csv.DictReader(judgments.open(encoding="utf-8")))
     key_path = path / "blinding_key.json"
@@ -81,7 +81,7 @@ def analyze(path: Path) -> dict[str, Any]:
                     "ci_95": [lower, upper],
                 }
         summary["paired_bootstrap"] = comparisons
-    summary["absa"] = _analyze_absa(path / "absa_annotations.csv")
+    summary["absa"] = _analyze_absa(path / "absa_annotations.csv", use_model)
     summary["citation_precision"] = _citation_precision(path / "citation_audit.csv")
     summary["explanation_ratings"] = _explanation_ratings(
         path / "explanation_ratings.csv"
@@ -89,11 +89,76 @@ def analyze(path: Path) -> dict[str, Any]:
     return summary
 
 
-def _analyze_absa(path: Path) -> dict[str, Any]:
+def _tokens(text: str) -> list[str]:
+    import re
+
+    return re.findall(r"[a-z0-9]+", str(text or "").casefold())
+
+
+def _span_f1(rows: list[dict[str, str]], predictions: list[dict[str, str]]) -> float | None:
+    """Token-overlap F1 between gold and predicted opinion spans (SemEval-style, relaxed)."""
+    scores = []
+    for row, predicted in zip(rows, predictions):
+        gold = _tokens(row.get("span", ""))
+        guess = _tokens(predicted.get("span", ""))
+        if not gold:
+            continue
+        overlap = sum(min(gold.count(token), guess.count(token)) for token in set(gold))
+        if not overlap:
+            scores.append(0.0)
+            continue
+        precision, recall = overlap / len(guess), overlap / len(gold)
+        scores.append(2 * precision * recall / (precision + recall))
+    return mean(scores) if scores else None
+
+
+def _lexicon_prediction(text: str) -> dict[str, str]:
+    from clickless.data.aspects import extract_aspects
+
+    found = extract_aspects(text, "eval")
+    if not found:
+        return {"aspect": "none", "polarity": "neutral", "span": ""}
+    first = found[0]
+    return {"aspect": first["aspect"], "polarity": first["polarity"], "span": first["span"]}
+
+
+def _qwen_predictions(client: Any, rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    system = (
+        "For each sentence return JSON with the main aspect (reliability, fuel_economy, cargo, "
+        "maintenance, or none), its polarity (positive, negative, neutral, mixed) and the exact "
+        "opinion span copied from the sentence."
+    )
+    predictions: dict[str, dict[str, str]] = {}
+    for start in range(0, len(rows), 20):
+        batch = rows[start : start + 20]
+        payload = client.complete_json(
+            system,
+            json.dumps(
+                {
+                    "sentences": [{"id": row["sentence_id"], "text": row["text"]} for row in batch],
+                    "output": {"sentences": [{"id": "string", "aspect": "string", "polarity": "string", "span": "string"}]},
+                }
+            ),
+            max_tokens=1800,
+        )
+        for item in payload.get("sentences", []) if isinstance(payload, dict) else []:
+            if isinstance(item, dict):
+                predictions[str(item.get("id"))] = {
+                    "aspect": str(item.get("aspect", "none")),
+                    "polarity": str(item.get("polarity", "neutral")),
+                    "span": str(item.get("span", "")),
+                }
+    return [
+        predictions.get(row["sentence_id"], {"aspect": "none", "polarity": "neutral", "span": ""})
+        for row in rows
+    ]
+
+
+def _analyze_absa(path: Path, use_model: bool = False) -> dict[str, Any]:
     rows = list(csv.DictReader(path.open(encoding="utf-8")))
     by_source: dict[str, list[dict[str, str]]] = defaultdict(list)
     for row in rows:
-        by_source[row["source_id"]].append(row)
+        by_source[row.get("sentence_id") or row["source_id"]].append(row)
     primary = [
         values[0]
         for values in by_source.values()
@@ -139,6 +204,23 @@ def _analyze_absa(path: Path) -> dict[str, Any]:
         [row["polarity"] for row in test],
         vader_labels(texts),
     )
+    lexicon = [_lexicon_prediction(row["text"]) for row in test]
+    result["baselines"]["lexicon_aspect"] = _classification_metrics(
+        [row["aspect"] for row in test], [item["aspect"] for item in lexicon]
+    )
+    result["baselines"]["lexicon_polarity"] = _classification_metrics(
+        [row["polarity"] for row in test], [item["polarity"] for item in lexicon]
+    )
+    result["baselines"]["lexicon_span_f1"] = _span_f1(test, lexicon)
+    if use_model:
+        from clickless.llm import QwenClient
+
+        qwen = _qwen_predictions(QwenClient.from_env(), test)
+        result["neural"] = {
+            "qwen_aspect": _classification_metrics([row["aspect"] for row in test], [item["aspect"] for item in qwen]),
+            "qwen_polarity": _classification_metrics([row["polarity"] for row in test], [item["polarity"] for item in qwen]),
+            "qwen_span_f1": _span_f1(test, qwen),
+        }
     for target in ("polarity", "aspect"):
         model = TfidfLogisticSentiment().fit(
             [row["text"] for row in train],
@@ -215,9 +297,10 @@ def _explanation_ratings(path: Path) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze completed ClickLess human judgments")
     parser.add_argument("--input", default=settings.root / "evaluation" / "output")
+    parser.add_argument("--use-model", action="store_true", help="Also score Qwen ABSA on the test split")
     args = parser.parse_args()
     root = Path(args.input)
-    result = analyze(root)
+    result = analyze(root, args.use_model)
     output = root / "human_metrics.json"
     output.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))

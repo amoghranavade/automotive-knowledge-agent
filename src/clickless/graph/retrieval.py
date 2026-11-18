@@ -23,16 +23,29 @@ def retrieve_evidence_paths(
     max_paths: int = 12,
 ) -> list[dict[str, Any]]:
     backend = os.getenv("CLICKLESS_GRAPH_BACKEND", "memory").strip().lower()
-    graph = build_graph(catalog)
     used_backend = "memory"
+    graph = None
     if backend == "neo4j":
         try:
             graph = _neo4j_neighborhood(vehicle_id)
             used_backend = "neo4j"
         except Exception:
-            graph = build_graph(catalog)
             used_backend = "memory_fallback"
+    if graph is None:
+        graph = _cached_graph(catalog)
     return _retrieve_from_graph(graph, vehicle_id, max_paths, used_backend)
+
+
+_GRAPH_CACHE: dict[int, tuple[dict[str, Any], dict[str, list[dict[str, Any]]]]] = {}
+
+
+def _cached_graph(catalog: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    cached = _GRAPH_CACHE.get(id(catalog))
+    if cached is None or cached[0] is not catalog:
+        _GRAPH_CACHE.clear()
+        cached = (catalog, build_graph(catalog))
+        _GRAPH_CACHE[id(catalog)] = cached
+    return cached[1]
 
 
 def _retrieve_from_graph(

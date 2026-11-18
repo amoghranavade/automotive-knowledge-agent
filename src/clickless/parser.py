@@ -42,18 +42,20 @@ def parse(query: str) -> tuple[Constraints, list[str]]:
     body_style = None
     drivetrain = None
 
+    not_miles = r"(?![\d,.])(?!\s*k?\s*(?:miles|mi\b|mileage|odometer))"
     price_patterns = [
-        r"(?:under|below|less than|max(?:imum)?|budget(?: of)?|up to)\s*\$?([\d,.]+)\s*k?",
-        r"\$([\d,.]+)\s*(?:or less|maximum|max)",
+        r"(?:under|below|less than|no more than|at most|max(?:imum)?|budget(?: of| is)?|up to|around|about)\s*\$?(\d[\d,.]*)" + not_miles,
+        r"\$(\d[\d,.]*)\s*k?\s*(?:or less|maximum|max)",
+        r"\$(\d[\d,.]*)" + not_miles,
     ]
     for pattern in price_patterns:
         match = re.search(pattern, text)
         if match:
-            max_price = _amount(match.group(1))
+            max_price = _amount(match.group(1).rstrip(".,"))
             break
 
     mileage_match = re.search(
-        r"(?:under|below|less than|max(?:imum)?|up to)\s*([\d,.]+)\s*k?\s*(?:miles|mi|mileage)",
+        r"(?:under|below|less than|fewer than|no more than|at most|max(?:imum)?|up to)\s*([\d,.]+)\s*k?\s*(?:miles|mi|mileage)",
         text,
     )
     if mileage_match:

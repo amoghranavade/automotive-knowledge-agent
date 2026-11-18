@@ -1,11 +1,15 @@
 from pathlib import Path
 
+from datetime import datetime, timezone
+
 from flask import Flask, jsonify, render_template, request
 
 from .llm import DEFAULT_QWEN_MODEL, QwenClient, QwenError
 from .data import CatalogError, load_catalog
 from .retail import BestBuyClient, EbayClient
+from .retail.base import RetailError
 from .sources import AutoDevClient, MarketCheckClient, SerpApiClient
+from .sources.base import SourceError
 from .service import recommend
 
 
@@ -125,6 +129,73 @@ def create_app() -> Flask:
             )
         except ValueError as error:
             return jsonify({"error": str(error)}), 400
+
+    @app.post("/api/live-check")
+    def live_check():
+        """ClickLess step: search live marketplaces for one recommended car now."""
+        body = request.get_json(silent=True) or {}
+        vehicle_id = str(body.get("vehicle_id", ""))
+        try:
+            catalog = load_catalog()
+        except CatalogError as error:
+            return jsonify({"error": str(error)}), 503
+        vehicle = next((item for item in catalog["vehicles"] if item["id"] == vehicle_id), None)
+        if vehicle is None:
+            return jsonify({"error": "Unknown vehicle."}), 404
+        year, make, model = vehicle["year"], vehicle["make"], vehicle["model"]
+        checked_at = datetime.now(timezone.utc).isoformat()
+        listings, sources, errors = [], [], []
+        for name, client in (
+            ("MarketCheck", MarketCheckClient.from_env()),
+            ("Auto.dev", AutoDevClient.from_env()),
+        ):
+            if client is None:
+                continue
+            sources.append(name)
+            try:
+                for item in client.search(make=make, model=model, year=year, limit=5):
+                    listings.append(
+                        {
+                            "source": name,
+                            "title": f"{item.year} {item.make} {item.model} {item.trim}".strip(),
+                            "price": item.price,
+                            "mileage": item.mileage,
+                            "location": item.location,
+                            "url": item.url,
+                        }
+                    )
+            except SourceError as error:
+                errors.append(f"{name}: {error}")
+        ebay = EbayClient.from_env()
+        if ebay is not None:
+            sources.append("eBay")
+            try:
+                for item in ebay.search(f"{year} {make} {model}", limit=15, category_ids="6001"):
+                    title = item.title.casefold()
+                    if str(year) in title and make.casefold() in title and model.casefold() in title:
+                        listings.append(
+                            {
+                                "source": "eBay",
+                                "title": item.title,
+                                "price": item.price,
+                                "mileage": item.attributes.get("mileage"),
+                                "location": "",
+                                "url": item.url,
+                            }
+                        )
+            except RetailError as error:
+                errors.append(f"eBay: {error}")
+        listings.sort(key=lambda item: item["price"] if item["price"] is not None else float("inf"))
+        return jsonify(
+            {
+                "vehicle_id": vehicle_id,
+                "checked_at": checked_at,
+                "sources": sources,
+                "listings": listings[:8],
+                "errors": errors,
+                "message": None if sources else "No live marketplace keys are configured.",
+            }
+        )
 
     return app
 

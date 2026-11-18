@@ -31,10 +31,15 @@ def slot_cases() -> list[dict[str, Any]]:
         price = prices[index % len(prices)]
         mileage = mileages[index % len(mileages)]
         year = years[index % len(years)]
-        query = (
-            f"Find a {drive} {body} {year} or newer under ${price:,} "
-            f"with under {mileage:,} miles."
+        article = "an" if body == "SUV" else "a"
+        templates = (
+            f"Find {article} {drive} {body} {year} or newer under ${price:,} with under {mileage:,} miles.",
+            f"I need {article} {body} with {drive}, budget ${price // 1000}k, less than {mileage // 1000}k miles, {year} or newer.",
+            f"Looking for a {year}+ {drive} {body}; max ${price:,}; mileage below {mileage:,} mi.",
+            f"Show me {drive} {body}s from {year} on, no more than {mileage:,} miles, up to ${price:,}.",
+            f"{body} please: {drive}, ${price:,} max, under {mileage // 1000}k miles, {year} and newer.",
         )
+        query = templates[index % len(templates)]
         cases.append(
             {
                 "id": f"slot-{index + 1:02d}",
@@ -51,10 +56,14 @@ def slot_cases() -> list[dict[str, Any]]:
     return cases
 
 
-def slot_metrics() -> dict[str, Any]:
+def slot_metrics(client: Any = None) -> dict[str, Any]:
     records = []
     for case in slot_cases():
-        predicted, _ = parse(case["query"])
+        predicted, questions = parse(case["query"])
+        if client is not None:
+            from clickless.llm import parse_request_with_model
+
+            predicted, _ = parse_request_with_model(client, case["query"], predicted, questions)
         actual = predicted.to_dict()
         records.append(
             {
@@ -81,9 +90,14 @@ def slot_metrics() -> dict[str, Any]:
     }
 
 
-def run(output: Path, overwrite: bool = False) -> dict[str, Any]:
+def run(output: Path, overwrite: bool = False, use_model: bool = False) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
     slots = slot_metrics()
+    model_slots = None
+    if use_model:
+        from clickless.llm import QwenClient
+
+        model_slots = slot_metrics(QwenClient.from_env())
     (output / "slot_parsing_metrics.json").write_text(
         json.dumps(slots, indent=2), encoding="utf-8"
     )
@@ -101,6 +115,11 @@ def run(output: Path, overwrite: bool = False) -> dict[str, Any]:
         "slot_parsing": {
             key: value for key, value in slots.items() if key != "records"
         },
+        "slot_parsing_qwen": (
+            {key: value for key, value in model_slots.items() if key != "records"}
+            if model_slots
+            else None
+        ),
         "shacl_conforms": conforms,
         "graph_link_audit": _labeled_audit_metrics(graph_path),
         "web_extraction_audit": _web_audit_metrics(web_path),
@@ -244,8 +263,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare and analyze ClickLess component audits")
     parser.add_argument("--output", default=settings.root / "evaluation" / "output")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--use-model", action="store_true", help="Also score Qwen slot parsing")
     args = parser.parse_args()
-    print(json.dumps(run(Path(args.output), args.overwrite), indent=2))
+    print(json.dumps(run(Path(args.output), args.overwrite, args.use_model), indent=2))
 
 
 if __name__ == "__main__":

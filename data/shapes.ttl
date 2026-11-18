@@ -16,3 +16,28 @@ clickless:OfferShape a sh:NodeShape ;
   sh:property [ sh:path clickless:mileage ; sh:minInclusive 0 ; sh:minCount 1 ] ;
   sh:property [ sh:path clickless:source_url ; sh:minCount 1 ] ;
   sh:property [ sh:path clickless:captured_at ; sh:minCount 1 ] .
+
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+# Provenance: every evidence record must point to a source document (slide 6).
+clickless:ProvenanceShape a sh:NodeShape ;
+  sh:targetClass schema:Offer , schema:Review , schema:Product , clickless:SafetyRating , clickless:RecallCampaign ;
+  sh:property [ sh:path prov:wasDerivedFrom ; sh:minCount 1 ; sh:class prov:Entity ] .
+
+clickless:SourceDocumentShape a sh:NodeShape ;
+  sh:targetClass prov:Entity ;
+  sh:property [ sh:path schema:url ; sh:minCount 1 ] ;
+  sh:property [ sh:path prov:generatedAtTime ; sh:minCount 1 ] .
+
+clickless:ReviewShape a sh:NodeShape ;
+  sh:targetClass schema:Review ;
+  sh:property [ sh:path schema:reviewBody ; sh:minCount 1 ] .
+
+clickless:AssertionShape a sh:NodeShape ;
+  sh:targetClass clickless:AspectAssertion ;
+  sh:property [ sh:path clickless:aspect ; sh:minCount 1 ; sh:in ( "reliability" "fuel_economy" "cargo" "maintenance" ) ] ;
+  sh:property [ sh:path clickless:polarity ; sh:minCount 1 ; sh:in ( "positive" "negative" "neutral" "mixed" ) ] .
+
+clickless:SafetyRatingShape a sh:NodeShape ;
+  sh:targetClass clickless:SafetyRating ;
+  sh:property [ sh:path clickless:overall_stars ; sh:minInclusive 0 ; sh:maxInclusive 5 ] .
