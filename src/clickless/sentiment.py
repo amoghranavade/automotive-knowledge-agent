@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from copy import deepcopy
-from typing import Iterable
+from typing import Any, Iterable
 
 
 POLARITY_SCORE = {
@@ -29,8 +29,8 @@ def vader_labels(texts: Iterable[str]) -> list[str]:
 
 @dataclass
 class TfidfLogisticSentiment:
-    vectorizer: object | None = None
-    classifier: object | None = None
+    vectorizer: Any | None = None
+    classifier: Any | None = None
 
     def fit(self, texts: list[str], labels: list[str]) -> "TfidfLogisticSentiment":
         if len(texts) != len(labels) or not texts:
@@ -50,8 +50,8 @@ class TfidfLogisticSentiment:
     def predict(self, texts: list[str]) -> list[str]:
         if self.vectorizer is None or self.classifier is None:
             raise RuntimeError("The sentiment model has not been fitted")
-        matrix = self.vectorizer.transform(texts)  # type: ignore[union-attr]
-        return self.classifier.predict(matrix).tolist()  # type: ignore[union-attr]
+        matrix = self.vectorizer.transform(texts)
+        return self.classifier.predict(matrix).tolist()
 
 
 def apply_vader_aspects(vehicles: list[dict]) -> list[dict]:

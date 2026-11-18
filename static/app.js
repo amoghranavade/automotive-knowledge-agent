@@ -234,14 +234,7 @@ function renderCandidate(candidate, index) {
   const source = node.querySelector(".source-link");
   const listingEvidence = (candidate.evidence || []).find((item) => item.type === "listing");
   const url = listing.url || listing.source_url || candidate.source_url || listingEvidence?.url;
-  const sampleListing = listing.sample_record || listingEvidence?.sample_record;
-  if (sampleListing) {
-    source.removeAttribute("target");
-    source.removeAttribute("rel");
-    source.textContent = "Sample listing · live link unavailable";
-    source.classList.add("source-link-unavailable");
-    source.setAttribute("aria-disabled", "true");
-  } else if (url) {
+  if (url) {
     source.href = url;
     source.textContent = candidate.listing_data_mode === "live"
       ? "View live listing"
@@ -322,7 +315,7 @@ function addSection(container, title, content, evidenceById = new Map()) {
   items.slice(0, 4).forEach((item) => {
     const entry = document.createElement("li");
     entry.append(document.createTextNode(evidenceText(item)));
-    if (item && typeof item === "object" && item.url && !item.sample_record) {
+    if (item && typeof item === "object" && item.url) {
       const link = document.createElement("a");
       link.href = item.url;
       link.target = "_blank";
@@ -333,7 +326,7 @@ function addSection(container, title, content, evidenceById = new Map()) {
     const citations = item && typeof item === "object" && Array.isArray(item.evidence_ids)
       ? [...new Set(item.evidence_ids)]
         .map((id) => evidenceById.get(id))
-        .filter((evidence) => evidence && !evidence.sample_record)
+        .filter(Boolean)
       : [];
     citations.forEach((evidence, index) => {
       const link = document.createElement("a");
@@ -356,8 +349,7 @@ function evidenceText(item) {
   const text = item.text || item.quote || item.description || item.title || JSON.stringify(item);
   const source = item.source ? ` — ${item.source}` : "";
   const indirect = item.indirect ? " (indirect)" : "";
-  const sample = item.sample_record ? " (sample)" : "";
-  return `${text}${source}${indirect}${sample}`;
+  return `${text}${source}${indirect}`;
 }
 
 function vehicleName(vehicle) {

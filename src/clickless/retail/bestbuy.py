@@ -54,6 +54,6 @@ class BestBuyClient:
 
 def _float(value: object) -> float | None:
     try:
-        return float(value)  # type: ignore[arg-type]
+        return float(str(value))
     except (TypeError, ValueError):
         return None

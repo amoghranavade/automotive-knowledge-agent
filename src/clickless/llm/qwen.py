@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 
 DEFAULT_QWEN_BASE_URL = "https://openai.rc.asu.edu/v1"
-DEFAULT_QWEN_MODEL = "qwen3-30b-a3b"
+DEFAULT_QWEN_MODEL = "qwen38-27b"
 DEFAULT_QWEN_TIMEOUT = 120.0
 
 

@@ -384,12 +384,6 @@ textarea:focus {
   font-weight: 750;
 }
 
-.source-link-unavailable {
-  color: #687386;
-  cursor: default;
-  text-decoration: none;
-}
-
 .configuration-control {
   display: grid;
   gap: 6px;

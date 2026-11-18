@@ -86,7 +86,6 @@ def _add_provenance(record: dict[str, Any], add_node: Any, add_edge: Any) -> Non
             "name": record["source_name"],
             "url": record["source_url"],
             "captured_at": record["captured_at"],
-            "sample_record": record.get("sample_record", False),
         },
     )
     add_edge(record["id"], "WAS_DERIVED_FROM", source_id)

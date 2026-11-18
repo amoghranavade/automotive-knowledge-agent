@@ -150,7 +150,6 @@ def craigslist_catalog(
                     "source_url": source_url,
                     "captured_at": str(row.get("posting_date") or captured),
                     "data_mode": "frozen_snapshot",
-                    "sample_record": False,
                 }
             )
 
@@ -158,7 +157,6 @@ def craigslist_catalog(
         "snapshot": {
             "id": f"clickless-{datetime.now(timezone.utc).date().isoformat()}",
             "created_at": captured,
-            "sample_data": False,
             "mode": "frozen_snapshot",
             "notice": "Recommendations use research datasets and optional live sources. Listing snapshots may no longer be active; verify all details before purchase.",
             "sources": ["Kaggle Used Cars Dataset"],
@@ -266,7 +264,6 @@ def _read_opinrank_bundle(
                     "source_url": "https://archive.ics.uci.edu/dataset/205/opinrank+review+dataset",
                     "captured_at": catalog["snapshot"]["created_at"],
                     "data_mode": "frozen_snapshot",
-                    "sample_record": False,
                 }
             )
             counts[vehicle_id] += 1
@@ -352,7 +349,6 @@ def add_amazon_products(
                 "source_url": source_url,
                 "captured_at": catalog["snapshot"]["created_at"],
                 "data_mode": "frozen_snapshot",
-                "sample_record": False,
             }
         )
         review = review_by_asin.get(parent_asin)
@@ -374,7 +370,6 @@ def add_amazon_products(
                     "source_url": source_url,
                     "captured_at": catalog["snapshot"]["created_at"],
                     "data_mode": "frozen_snapshot",
-                    "sample_record": False,
                 }
             )
     if products:
@@ -420,7 +415,6 @@ def add_nhtsa(catalog: dict[str, Any]) -> tuple[int, int]:
                     **{key: value for key, value in rating.items() if key != "vehicle_id"},
                     "source_id": source_id,
                     "source_name": "NHTSA NCAP",
-                    "sample_record": False,
                 }
             )
             rating_count += 1

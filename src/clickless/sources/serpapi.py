@@ -80,13 +80,13 @@ def _offer(item: dict[str, Any], captured_at: str) -> ProductOffer | None:
 
 def _float(value: object) -> float | None:
     try:
-        return float(value)  # type: ignore[arg-type]
+        return float(str(value))
     except (TypeError, ValueError):
         return None
 
 
 def _integer(value: object) -> int | None:
     try:
-        return int(value)  # type: ignore[arg-type]
+        return int(str(value))
     except (TypeError, ValueError):
         return None

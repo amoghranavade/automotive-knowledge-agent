@@ -105,6 +105,6 @@ def _listing(item: dict[str, Any], captured_at: str) -> VehicleListing | None:
 
 def _integer(value: object) -> int | None:
     try:
-        return int(float(value))  # type: ignore[arg-type]
+        return int(float(str(value)))
     except (TypeError, ValueError):
         return None

@@ -106,7 +106,6 @@ def _listing(record: dict[str, Any]) -> dict[str, Any]:
         "observed_at": record["captured_at"],
         "location": record.get("location", ""),
         "data_mode": record.get("data_mode", "frozen_snapshot"),
-        "sample_record": record.get("sample_record", False),
     }
 
 
@@ -123,7 +122,6 @@ def _safety(
             "source": "NHTSA",
             "url": "https://www.nhtsa.gov/ratings",
             "observed_at": "unknown",
-            "sample_record": False,
             "recall_mode": recall_mode,
             "recalls": [_recall(item) for item in recalls],
         }
@@ -134,7 +132,6 @@ def _safety(
         "source": record["source_name"],
         "url": record["source_url"],
         "observed_at": record["captured_at"],
-        "sample_record": record.get("sample_record", False),
         "recall_mode": recall_mode,
         "recalls": [_recall(item) for item in recalls],
     }
@@ -150,7 +147,6 @@ def _recall(record: dict[str, Any]) -> dict[str, Any]:
         "source": record.get("source_name", "NHTSA"),
         "url": record.get("source_url", "https://www.nhtsa.gov/recalls"),
         "observed_at": record.get("captured_at") or record.get("report_received_date", "unknown"),
-        "sample_record": record.get("sample_record", False),
     }
 
 
@@ -186,7 +182,6 @@ def _review(record: dict[str, Any]) -> dict[str, Any]:
         "aspect_method": "lexicon",
         "match_type": record.get("match_type", "exact_year"),
         "source_kind": record.get("source_kind", "owner_review"),
-        "sample_record": record.get("sample_record", False),
     }
 
 
@@ -200,5 +195,4 @@ def _product(record: dict[str, Any]) -> dict[str, Any]:
         "data_mode": record.get("data_mode", "frozen_snapshot"),
         "text": f"{record['name']} listed at ${record['price']:,.2f}; {fitment}.",
         "verified_fitment": record["verified_fitment"],
-        "sample_record": record.get("sample_record", False),
     }

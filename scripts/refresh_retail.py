@@ -33,7 +33,6 @@ def _add_listing(catalog: dict, vehicle: dict, item: VehicleListing) -> bool:
             "source_url": item.url,
             "captured_at": item.captured_at,
             "data_mode": "live",
-            "sample_record": False,
         }
     )
     return True
@@ -117,7 +116,6 @@ def _add_product(catalog: dict, vehicle: dict, item: ProductOffer) -> bool:
             "source_url": item.url,
             "captured_at": item.captured_at,
             "data_mode": "live",
-            "sample_record": False,
         }
     )
     return True
@@ -184,7 +182,6 @@ def refresh_ebay(catalog: dict, per_vehicle: int) -> int:
                     "source_url": item.url,
                     "captured_at": captured,
                     "data_mode": "live",
-                    "sample_record": False,
                 }
             )
             existing.add(record_id)
@@ -226,7 +223,6 @@ def refresh_bestbuy(catalog: dict, per_vehicle: int) -> int:
                     "source_url": item.url,
                     "captured_at": captured,
                     "data_mode": "live",
-                    "sample_record": False,
                 }
             )
             existing.add(record_id)

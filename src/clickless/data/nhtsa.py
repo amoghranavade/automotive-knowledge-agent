@@ -116,5 +116,4 @@ def _normalize_recall(item: dict[str, Any]) -> dict[str, Any]:
         "source_url": "https://www.nhtsa.gov/recalls",
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "source_id": f"nhtsa-{campaign}" if campaign else "nhtsa-unknown",
-        "sample_record": False,
     }

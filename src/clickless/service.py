@@ -41,7 +41,6 @@ def _evidence(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
             "text": f"Listed at ${listing['price']:,} with {listing['mileage']:,} miles.",
             "facts": {"price": listing["price"], "mileage": listing["mileage"]},
             "indirect": False,
-            "sample_record": listing.get("sample_record", False),
             "data_mode": listing.get("data_mode", "frozen_snapshot"),
         },
         {
@@ -60,7 +59,6 @@ def _evidence(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
                 "recall_count": len(safety.get("recalls", [])),
             },
             "indirect": False,
-            "sample_record": safety.get("sample_record", False),
         },
     ]
     for recall in safety.get("recalls", []):
@@ -78,7 +76,6 @@ def _evidence(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
                     "component": recall["component"],
                 },
                 "indirect": False,
-                "sample_record": recall.get("sample_record", False),
             }
         )
     exact_reviews = [
@@ -100,7 +97,6 @@ def _evidence(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
                 "text": review["text"],
                 "facts": {"review_year": review["year"]},
                 "indirect": review.get("match_type") != "exact_year",
-                "sample_record": review.get("sample_record", False),
                 "data_mode": review.get("data_mode", "frozen_snapshot"),
             }
         )
@@ -115,7 +111,6 @@ def _evidence(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
                 "text": product["text"],
                 "facts": {"verified_fitment": product["verified_fitment"]},
                 "indirect": False,
-                "sample_record": product.get("sample_record", False),
                 "data_mode": product.get("data_mode", "frozen_snapshot"),
             }
         )
@@ -134,11 +129,7 @@ def _candidate(
     listing_id = vehicle["listing"]["source_id"]
     safety_id = vehicle["safety"]["source_id"]
     stars = vehicle["safety"]["ncap_stars"]
-    safety_text = (
-        f"Sample safety record reports {stars} stars."
-        if vehicle["safety"].get("sample_record")
-        else f"NHTSA reports a {stars}-star safety rating."
-    )
+    safety_text = f"NHTSA reports a {stars}-star safety rating."
     pros = [{"text": safety_text, "evidence_ids": [safety_id]}] if stars else []
     if exact_reviews:
         pros.append(
@@ -369,7 +360,7 @@ def recommend(
             if match_mode == "closest_alternatives"
             else None
         ),
-        "data_mode": "sample" if snapshot.get("sample_data") else "snapshot",
+        "data_mode": snapshot.get("mode", "frozen_snapshot"),
         "data_notice": snapshot.get("notice"),
         "model_mode": model_mode,
         "model_name": client.model if client is not None else None,

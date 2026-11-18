@@ -11,12 +11,13 @@ The current research snapshot contains:
 - 23 matched NHTSA crash-rating records
 - 196 NHTSA recall records
 
-No hardcoded demo catalog is used by the application.
+The application reads its catalog from `data/processed/catalog.json`.
 
 ## Setup
 
 ```bash
-cd /Users/amogh/Desktop/SWM-Project
+git clone https://github.com/amoghranavade/automotive-knowledge-agent.git
+cd automotive-knowledge-agent
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[data,graph,ml]'
@@ -37,15 +38,12 @@ python scripts/prepare_models.py
 
 ## Environment file
 
-Put all keys in this file:
-
-```text
-/Users/amogh/Desktop/SWM-Project/.env
-```
+Copy `.env.example` to `.env` and add the credentials you use.
 
 Paste the ASU key after the equals sign:
 
 ```dotenv
+CLICKLESS_QWEN_MODEL=qwen38-27b
 CLICKLESS_QWEN_API_KEY=your_actual_key_here
 ```
 
@@ -60,7 +58,7 @@ EBAY_CLIENT_SECRET=
 BESTBUY_API_KEY=
 ```
 
-Only `AUTO_DEV_API_KEY` and `SERPAPI_API_KEY` are needed for the current live demo. MarketCheck, eBay, Best Buy, Amazon Creators, and Walmart credentials are optional; leaving them blank disables only those direct connectors and does not stop the app.
+Only `AUTO_DEV_API_KEY` and `SERPAPI_API_KEY` are needed for the current live data path. MarketCheck, eBay, and Best Buy are optional; connectors without credentials are skipped.
 
 The `.env` file is ignored by Git. Never commit or send it.
 
@@ -113,7 +111,7 @@ source .venv/bin/activate
 python scripts/refresh_retail.py
 ```
 
-MarketCheck is the primary live vehicle source when configured and Auto.dev is its fallback. SerpApi supplies live aftermarket offers across Google Shopping merchants. Live records are timestamped and labeled `Live`; research records are labeled `Frozen snapshot`. OpinRank remains the vehicle-owner review source because shopping reviews describe products rather than long-term vehicle ownership. Direct Amazon, Walmart, eBay, and Best Buy access is disabled when its credential is absent; the app does not fake those integrations.
+MarketCheck is the primary live vehicle source when configured and Auto.dev is its fallback. SerpApi supplies live aftermarket offers across Google Shopping merchants. Live records are timestamped and labeled `Live`; research records are labeled `Frozen snapshot`. OpinRank remains the vehicle-owner review source because shopping reviews describe products rather than long-term vehicle ownership. Direct eBay and Best Buy refreshes run only when their credentials are present.
 
 For a quick pre-demo refresh that avoids consuming many API calls:
 
@@ -163,7 +161,7 @@ The evaluation writes:
 - `human_judgments.csv`
 - `absa_annotations.csv`
 
-The team must complete the blinded scores and review labels. The software does not fabricate human judgments.
+The team must complete the blinded scores and review labels before calculating human-evaluation metrics.
 
 After both judges fill `human_judgments.csv`, calculate Precision@5, nDCG@5, Cohen's kappa, and paired bootstrap confidence intervals:
 

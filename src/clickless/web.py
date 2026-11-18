@@ -4,7 +4,7 @@ from flask import Flask, jsonify, render_template, request
 
 from .llm import DEFAULT_QWEN_MODEL, QwenClient, QwenError
 from .data import CatalogError, load_catalog
-from .retail import AmazonCreatorsClient, BestBuyClient, EbayClient, WalmartClient
+from .retail import BestBuyClient, EbayClient
 from .sources import AutoDevClient, MarketCheckClient, SerpApiClient
 from .service import recommend
 
@@ -21,7 +21,11 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("index.html", model_name=DEFAULT_QWEN_MODEL)
+        try:
+            model_name = QwenClient.from_env().model
+        except QwenError:
+            model_name = DEFAULT_QWEN_MODEL
+        return render_template("index.html", model_name=model_name)
 
     @app.get("/api/health")
     def health():
@@ -60,8 +64,6 @@ def create_app() -> Flask:
                     "serpapi": SerpApiClient.from_env() is not None,
                     "ebay": EbayClient.from_env() is not None,
                     "bestbuy": BestBuyClient.from_env() is not None,
-                    "amazon": AmazonCreatorsClient.from_env() is not None,
-                    "walmart": WalmartClient.from_env() is not None,
                     "nhtsa": True,
                 },
                 "live_records": {
