@@ -49,11 +49,7 @@ def _evidence(vehicle: dict[str, Any]) -> list[dict[str, Any]]:
             "source": "NHTSA",
             "url": safety["url"],
             "observed_at": safety["observed_at"],
-            "text": (
-                f"NHTSA reports an overall {safety['ncap_stars']}-star rating."
-                if safety["ncap_stars"] is not None
-                else "NHTSA has no overall star rating for this model-year in the stored response."
-            ),
+            "text": _safety_text(safety),
             "facts": {
                 "ncap_stars": safety["ncap_stars"],
                 "recall_count": len(safety.get("recalls", [])),
@@ -129,7 +125,7 @@ def _candidate(
     listing_id = vehicle["listing"]["source_id"]
     safety_id = vehicle["safety"]["source_id"]
     stars = vehicle["safety"]["ncap_stars"]
-    safety_text = f"NHTSA reports a {stars}-star safety rating."
+    safety_text = _safety_text(vehicle["safety"])
     pros = [{"text": safety_text, "evidence_ids": [safety_id]}] if stars else []
     positive_ids = {
         review["source_id"]
@@ -195,6 +191,7 @@ def _candidate(
         "listing_source": vehicle["listing"].get("source"),
         "listing_data_mode": vehicle["listing"].get("data_mode", "frozen_snapshot"),
         "safety_rating": stars,
+        "safety_basis": vehicle["safety"].get("rating_basis", "overall"),
         "recall_count": len(recall_items),
         "score": score,
         "tier": "requires_additional_evidence" if missing else "complete",
@@ -490,3 +487,15 @@ def _aspect_bundles(
         if bundle["positive"] or bundle["negative"]:
             bundles.append(bundle)
     return bundles
+
+
+def _safety_text(safety: dict[str, Any]) -> str:
+    stars = safety.get("ncap_stars")
+    if stars is None:
+        return "NHTSA has no crash-test scores for this model year in the stored data."
+    if safety.get("rating_basis") == "test_average":
+        return (
+            f"NHTSA crash tests average {stars} stars (front, side, rollover); "
+            "this model year has no overall rating."
+        )
+    return f"NHTSA reports an overall {stars}-star rating."

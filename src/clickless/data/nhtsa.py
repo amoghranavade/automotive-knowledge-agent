@@ -16,7 +16,60 @@ class NHTSAError(RuntimeError):
     pass
 
 
+import re
+
+# Catalog model strings that NHTSA files under another make or name.
+MODEL_ALIASES = {
+    ("ram", "dr"): "1500",  # "DR" is the 2002-2008 Ram 1500 platform code
+}
+
+
+def model_variants(model: str) -> list[str]:
+    """Craigslist model strings often carry a trim ("cr-v ex-l"); NHTSA wants the base model."""
+    tokens = str(model or "").split()
+    variants: list[str] = []
+    for size in range(len(tokens), 0, -1):
+        name = " ".join(tokens[:size])
+        hyphenated = re.sub(r"\b([a-z]+)(\d{2,4})\b", r"\1-\2", name)  # f250 -> f-250
+        compact = name.replace("-", "")
+        joined = re.sub(r"\b([a-z]+) (\d{2,4})\b", r"\1\2", name)  # es 350 -> es350
+        for base in (name, hyphenated, compact, joined):
+            variants.append(base)
+            if "super duty" in base:
+                variants.append(base.replace("super duty", "sd"))
+            if re.fullmatch(r"f-?[2-5]50", base):
+                variants.append(f"{base} sd")  # NHTSA files Super Duty pickups as "F-250 SD"
+    return list(dict.fromkeys(item.strip() for item in variants if item.strip()))
+
+
+def lookup_names(make: str, model: str, year: int) -> list[tuple[str, str]]:
+    """(make, model) pairs to try, most specific first."""
+    make = str(make or "").strip().lower()
+    model = MODEL_ALIASES.get((make, str(model or "").strip().lower()), model)
+    pairs = [(make, name) for name in model_variants(model)]
+    if make == "ram" and int(year) < 2011:
+        # Ram became its own brand for model year 2011; earlier trucks are "Dodge Ram 2500".
+        pairs = [("dodge", f"ram {name}") for name in model_variants(model)] + pairs
+    return list(dict.fromkeys(pairs))
+
+
 def fetch_recalls(make: str, model: str, year: int, timeout: float = 6.0) -> list[dict[str, Any]]:
+    """Try each name variant; a 400 for one spelling must not stop the others."""
+    errors = []
+    for lookup_make, name in lookup_names(make, model, year):
+        try:
+            results = _fetch_recalls_once(lookup_make, name, year, timeout)
+        except NHTSAError as error:
+            errors.append(error)
+            continue
+        if results:
+            return results
+    if errors and len(errors) == len(lookup_names(make, model, year)):
+        raise errors[-1]
+    return []
+
+
+def _fetch_recalls_once(make: str, model: str, year: int, timeout: float) -> list[dict[str, Any]]:
     query = urlencode({"make": make, "model": model, "modelYear": year})
     request = Request(f"{ENDPOINT}?{query}", headers={"User-Agent": "ClickLessAutomotive/1.0"})
     try:
@@ -38,13 +91,22 @@ def fetch_safety_rating(
     timeout: float = 8.0,
     drivetrain: str | None = None,
 ) -> dict[str, Any] | None:
-    lookup_url = (
-        f"{RATINGS_ENDPOINT}/modelyear/{year}/make/{quote(make)}/"
-        f"model/{quote(model)}?format=json"
-    )
-    lookup = _get_json(lookup_url, timeout)
-    matches = lookup.get("Results") or lookup.get("results") or []
-    if not isinstance(matches, list) or not matches:
+    matches: list[dict[str, Any]] = []
+    for lookup_make, name in lookup_names(make, model, year):
+        lookup_url = (
+            f"{RATINGS_ENDPOINT}/modelyear/{year}/make/{quote(lookup_make)}/"
+            f"model/{quote(name)}?format=json"
+        )
+        try:
+            lookup = _get_json(lookup_url, timeout)
+        except NHTSAError:
+            continue  # this spelling is unknown to NHTSA; try the next one
+        found = lookup.get("Results") or lookup.get("results") or []
+        if isinstance(found, list) and found:
+            matches = found
+            make, model = lookup_make, name
+            break
+    if not matches:
         return None
     chosen = _match_drivetrain(matches, drivetrain)
     vehicle_id = chosen.get("VehicleId") or chosen.get("vehicleId")
@@ -58,10 +120,16 @@ def fetch_safety_rating(
     rating = _rating(record.get("OverallRating"))
     return {
         "vehicle_id": str(vehicle_id),
+        "description": record.get("VehicleDescription", ""),
         "overall_stars": rating,
         "frontal_stars": _rating(record.get("OverallFrontCrashRating")),
         "side_stars": _rating(record.get("OverallSideCrashRating")),
         "rollover_stars": _rating(record.get("RolloverRating")),
+        # Pre-2011 models are "Not Rated" overall but keep these per-seat scores.
+        "front_driver_stars": _rating(record.get("FrontCrashDriversideRating")),
+        "front_passenger_stars": _rating(record.get("FrontCrashPassengersideRating")),
+        "side_driver_stars": _rating(record.get("SideCrashDriversideRating")),
+        "side_passenger_stars": _rating(record.get("SideCrashPassengersideRating")),
         "source_url": f"https://www.nhtsa.gov/vehicle/{year}/{quote(make)}/{quote(model)}",
         "captured_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -94,6 +162,29 @@ def _get_json(url: str, timeout: float) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise NHTSAError("NHTSA returned an invalid response")
     return payload
+
+
+TEST_FIELDS = (
+    "frontal_stars",
+    "side_stars",
+    "rollover_stars",
+    "front_driver_stars",
+    "front_passenger_stars",
+    "side_driver_stars",
+    "side_passenger_stars",
+)
+
+
+def safety_stars(record: dict[str, Any] | None) -> tuple[float | int | None, str]:
+    """Overall NCAP stars when NHTSA has them, else the average of the individual tests."""
+    if not record:
+        return None, "none"
+    if record.get("overall_stars") is not None:
+        return record["overall_stars"], "overall"
+    values = [record[field] for field in TEST_FIELDS if record.get(field) is not None]
+    if not values:
+        return None, "none"
+    return round(sum(values) / len(values), 1), "test_average"
 
 
 def _rating(value: Any) -> int | None:

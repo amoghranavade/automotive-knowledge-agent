@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from .data.nhtsa import NHTSAError, fetch_recalls, recalls_with_fallback
+from .data.nhtsa import NHTSAError, fetch_recalls, recalls_with_fallback, safety_stars
 from .data.repository import all_vehicle_bundles, load_catalog
 
 
@@ -114,8 +114,10 @@ def _safety(
     recalls: list[dict[str, Any]],
     recall_mode: str,
 ) -> dict[str, Any]:
+    stars, basis = safety_stars(record)
     if record is None:
         return {
+            "rating_basis": "none",
             "ncap_stars": None,
             "recall_count": len(recalls),
             "source_id": "nhtsa-unavailable",
@@ -126,7 +128,8 @@ def _safety(
             "recalls": [_recall(item) for item in recalls],
         }
     return {
-        "ncap_stars": record["overall_stars"],
+        "rating_basis": basis,
+        "ncap_stars": stars,
         "recall_count": len(recalls),
         "source_id": record["source_id"],
         "source": record["source_name"],

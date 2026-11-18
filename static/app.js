@@ -16,6 +16,15 @@ const notices = document.querySelector("#notices");
 const refineControl = document.querySelector("#refine-control");
 const refineToggle = document.querySelector("#refine");
 const followUpQuestion = document.querySelector("#follow-up-question");
+const settingsDialog = document.querySelector("#settings-dialog");
+const openSettings = document.querySelector("#open-settings");
+const voiceTitle = voiceButton.querySelector(".voice-title");
+const voiceHint = voiceButton.querySelector(".voice-hint");
+
+openSettings.addEventListener("click", () => settingsDialog.showModal());
+settingsDialog.addEventListener("click", (event) => {
+  if (event.target === settingsDialog) settingsDialog.close();
+});
 
 let previousQuery = "";
 let awaitingAnswer = false;
@@ -35,6 +44,14 @@ const RATINGS = [
   ["cargo", "Cargo space"],
   ["snow", "Winter traction"],
 ];
+
+const MODE_NAMES = {
+  A: "Basic: keyword matching (A)",
+  B: "Meaning search, no connected facts (B)",
+  C: "Recommended (C)",
+  D: "Connected facts with whole reviews (D)",
+  E: "Connected facts, ignore owner opinions (E)",
+};
 
 const PRIORITY_NAMES = {
   price: "Low price",
@@ -134,7 +151,8 @@ function render(data) {
 
   const noticeText = data.model_notice;
   if (noticeText) {
-    notices.textContent = noticeText;
+    notices.textContent = friendlyNotice(noticeText);
+    notices.title = noticeText;
     notices.hidden = false;
   }
 
@@ -258,9 +276,10 @@ function renderGauge(gauge, score, missesLimits) {
 function renderBadges(list, candidate) {
   const badges = [];
   if (candidate.safety_rating) {
-    badges.push(["good", `${candidate.safety_rating}★ crash rating`]);
+    const label = candidate.safety_basis === "test_average" ? "crash tests" : "crash rating";
+    badges.push([candidate.safety_rating >= 4 ? "good" : "fair", `${candidate.safety_rating}★ ${label}`]);
   } else {
-    badges.push(["none", "No crash rating"]);
+    badges.push(["none", "No crash tests on file"]);
   }
   badges.push(
     candidate.recall_count
@@ -347,12 +366,12 @@ function renderDetails(node, candidate, data, evidenceById) {
   const stages = data.model_stages || {};
   const backend = (candidate.graph_paths || [])[0]?.backend;
   const rows = [
-    ["Method", `Configuration ${data.configuration || "C"}`],
-    ["Request parsing", stages.parsing === "qwen" ? "Qwen" : "Rules"],
-    ["Review aspects", { qwen: "Qwen", vader: "VADER", stored_lexicon: "Lexicon" }[stages.review_extraction] || "Lexicon"],
-    ["Evidence search", readableRetrieval(candidate.retrieval_mode)],
-    ["Knowledge graph", backend ? (backend === "neo4j" ? "Neo4j" : "In-memory graph") : "Not used"],
-    ["Summaries", stages.summaries === "qwen" ? "Qwen" : "Templates"],
+    ["Mode", MODE_NAMES[data.configuration || "C"]],
+    ["Understood your request with", stages.parsing === "qwen" ? "AI helper" : "Keyword rules"],
+    ["Read owner reviews with", { qwen: "AI helper", vader: "Positive/negative word list", stored_lexicon: "Keyword matching" }[stages.review_extraction] || "Keyword matching"],
+    ["Found evidence with", readableRetrieval(candidate.retrieval_mode)],
+    ["Connected facts", backend ? (backend === "neo4j" ? "Yes, from the Neo4j database" : "Yes, built in") : "Not used in this mode"],
+    ["Summary written by", stages.summaries === "qwen" ? "AI helper" : "Fixed templates"],
   ];
   const method = node.querySelector(".method");
   rows.forEach(([term, value]) => {
@@ -377,10 +396,10 @@ function renderDetails(node, candidate, data, evidenceById) {
     (candidate.evidence || []).filter((item) => item.type === "recall"),
     evidenceById,
   );
-  addSection(sections, "Graph connections", candidate.graph_paths || [], evidenceById);
+  addSection(sections, "How the facts connect", candidate.graph_paths || [], evidenceById);
   addSection(
     sections,
-    "Most relevant passages",
+    "Best-matching evidence",
     (candidate.retrieved_passages || []).slice(0, 3).map((item) => ({
       text: item.text,
       evidence_ids: [item.evidence_id],
@@ -485,8 +504,10 @@ async function loadModelStatus() {
     if (!response.ok) throw new Error();
     modelStatus.textContent = data.available ? "Qwen connected" : "Qwen offline";
     modelStatus.classList.toggle("ready", Boolean(data.available));
+    modelStatus.classList.toggle("offline", !data.available);
   } catch {
     modelStatus.textContent = "Qwen offline";
+    modelStatus.classList.add("offline");
   }
 }
 
@@ -512,7 +533,8 @@ function setupVoiceInput() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     voiceButton.disabled = true;
-    voiceButton.title = "Voice input works in Chrome and Edge.";
+    voiceTitle.textContent = "Voice off";
+    voiceHint.textContent = "Use Chrome or Edge";
     return;
   }
 
@@ -537,7 +559,9 @@ function setupVoiceInput() {
   recognition.onstart = () => {
     voiceButton.setAttribute("aria-pressed", "true");
     voiceButton.classList.add("listening");
-    voiceStatus.textContent = "Listening…";
+    voiceTitle.textContent = "Listening…";
+    voiceHint.textContent = "Tap to stop";
+    voiceStatus.textContent = "Describe the car you want, like you'd tell a friend.";
   };
 
   recognition.onresult = (event) => {
@@ -564,6 +588,8 @@ function setupVoiceInput() {
   recognition.onend = () => {
     voiceButton.setAttribute("aria-pressed", "false");
     voiceButton.classList.remove("listening");
+    voiceTitle.textContent = "Just say it";
+    voiceHint.textContent = "Tap and talk";
     if (queryInput.value.trim() && !voiceStatus.textContent.includes("blocked")) {
       voiceStatus.textContent = "Check the text, then select Find cars.";
     }
@@ -574,12 +600,21 @@ function setupVoiceInput() {
 
 function readableRetrieval(mode) {
   if (!mode) return "Not used";
-  if (mode === "bm25") return "Keyword search (BM25)";
+  if (mode === "bm25") return "Keyword search";
   if (mode.startsWith("ontology_graph")) {
-    return mode.includes("MiniLM") ? "Graph paths + MiniLM" : "Graph paths + TF-IDF";
+    return mode.includes("MiniLM") ? "Connected facts + meaning search" : "Connected facts + keyword search";
   }
-  if (mode.includes("MiniLM")) return "Vector search (MiniLM)";
-  return "Keyword search (TF-IDF)";
+  if (mode.includes("MiniLM")) return "Meaning search";
+  return "Keyword search";
+}
+
+function friendlyNotice(text) {
+  const notes = [];
+  if (/MiniLM|Dense retrieval/i.test(text)) notes.push("Meaning search is off, so keyword search was used.");
+  if (/Qwen unavailable|rule-based parsing/i.test(text)) notes.push("The AI helper is offline, so keyword rules read your request.");
+  if (/summaries used stored evidence/i.test(text)) notes.push("Summaries come from templates because the AI helper didn't respond.");
+  if (/VADER requires/i.test(text)) notes.push("The positive/negative word list isn't installed.");
+  return notes.length ? notes.join(" ") : text;
 }
 
 function vehicleName(candidate) {

@@ -99,9 +99,8 @@ def _retrieve_from_graph(
                     evidence_id for kind in kinds for evidence_id in available[kind]
                 ),
                 "text": (
-                    f"{', '.join(kind.replace('_', ' ') for kind in kinds)} records "
-                    f"refer to the {component.replace('_', ' ')} subsystem. This is "
-                    "related evidence, not proof of causation, fitment, or repair cost."
+                    f"{_join_plain(kinds)} all mention the {component.replace('_', ' ')}. "
+                    "Related, not proof of a problem."
                 ),
                 "indirect": False,
             }
@@ -293,8 +292,8 @@ def _review_paths(
                     ],
                     "evidence_ids": [source_id] if source_id else [],
                     "text": (
-                        f"Owner review contains a {aspect.replace('_', ' ')} assertion "
-                        f"about the {component.replace('_', ' ')} subsystem."
+                        f"Owner comment on {aspect.replace('_', ' ')}"
+                        + (f" that mentions the {component.replace('_', ' ')}." if component != "unknown" else ".")
                     ),
                     "indirect": indirect,
                 }
@@ -329,17 +328,28 @@ def _source_id(
 
 
 def _path_text(kind: str, properties: dict[str, Any], component: str | None) -> str:
+    part = (component or "unknown").replace("_", " ")
     if kind == "listing":
-        return f"Listing at ${properties['price']:,} with {properties['mileage']:,} miles."
+        return f"Listed at ${properties['price']:,} with {properties['mileage']:,} miles."
     if kind == "safety":
-        return f"Safety record with {properties.get('overall_stars')} overall stars."
+        from clickless.data.nhtsa import safety_stars
+
+        stars, basis = safety_stars(properties)
+        if stars is None:
+            return "NHTSA safety record (no crash-test scores)."
+        return f"NHTSA crash tests: {stars} stars" + (" on average." if basis == "test_average" else " overall.")
     if kind == "recall":
-        return f"Recall record linked to the {(component or 'unknown').replace('_', ' ')} subsystem."
+        return "Recall" + (f" affecting the {part}." if part != "unknown" else ".")
     if kind == "review":
-        suffix = f" and the {component.replace('_', ' ')} subsystem" if component else ""
-        return f"Owner review linked to an aspect assertion{suffix}."
-    fitment = "verified fitment" if properties.get("verified_fitment") else "unverified fitment"
-    return f"Aftermarket product linked to the {(component or 'unknown').replace('_', ' ')} subsystem; {fitment}."
+        return "Owner review" + (f" that mentions the {part}." if component and part != "unknown" else ".")
+    fit = "fit confirmed" if properties.get("verified_fitment") else "fit not confirmed"
+    return "Replacement part" + (f" for the {part}" if part != "unknown" else "") + f" ({fit})."
+
+
+def _join_plain(kinds: list[str]) -> str:
+    names = {"listing": "Listings", "safety": "Safety records", "recall": "Recalls", "review": "Owner reviews", "product": "Parts"}
+    words = [names.get(kind, kind.title()) for kind in kinds]
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1].lower()
 
 
 def _unique(values: Any) -> list[str]:

@@ -142,26 +142,76 @@ textarea:focus {
 }
 
 .voice-button {
-  display: grid;
-  width: 52px;
-  place-items: center;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 16px 10px 10px;
   color: var(--brand);
+  text-align: left;
   cursor: pointer;
-  background: var(--brand-soft);
-  border: 1px solid #bfe2de;
-  border-radius: 12px;
+  background: linear-gradient(135deg, #e3f3f1, #d3ece8);
+  border: 1px solid #b9dfda;
+  border-radius: 14px;
 }
 
-.voice-button svg {
-  width: 22px;
-  height: 22px;
+.voice-button:hover {
+  border-color: var(--brand);
+}
+
+.voice-icon {
+  position: relative;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  color: #fff;
+  background: var(--brand);
+  border-radius: 50%;
+}
+
+.voice-icon svg {
+  width: 20px;
+  height: 20px;
   fill: currentColor;
 }
 
+.voice-text {
+  display: grid;
+  line-height: 1.15;
+}
+
+.voice-title {
+  font-size: 0.98rem;
+}
+
+.voice-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .voice-button.listening {
-  color: #fff;
-  background: var(--poor);
+  color: var(--poor);
+  background: var(--poor-soft);
   border-color: var(--poor);
+}
+
+.voice-button.listening .voice-icon {
+  background: var(--poor);
+}
+
+/* Motion only in response to a tap: a ripple while the mic is open. */
+.voice-button.listening .voice-icon::after {
+  position: absolute;
+  inset: -4px;
+  content: "";
+  border: 2px solid var(--poor);
+  border-radius: 50%;
+  animation: ripple 1.2s ease-out infinite;
+}
+
+@keyframes ripple {
+  from { opacity: 0.8; transform: scale(0.9); }
+  to { opacity: 0; transform: scale(1.35); }
 }
 
 .voice-button:disabled {
@@ -169,6 +219,10 @@ textarea:focus {
   cursor: not-allowed;
   background: #eef2f5;
   border-color: var(--line);
+}
+
+.voice-button:disabled .voice-icon {
+  background: #9aa5b3;
 }
 
 .voice-status {
@@ -241,34 +295,54 @@ textarea:focus {
   accent-color: var(--brand);
 }
 
-.settings {
-  font-size: 0.92rem;
-}
-
-.settings summary {
+.actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  width: fit-content;
-  color: var(--muted);
-  cursor: pointer;
 }
 
-.settings-body {
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
-  padding: 12px 14px;
-  background: #f8fafc;
+.settings-button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 14px;
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 12px;
 }
 
+.settings-button svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--muted);
+}
+
+.settings-button:hover {
+  border-color: #b9c4cf;
+}
+
 .model-status {
-  padding: 2px 8px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.84rem;
+  font-weight: 600;
   background: #eef2f5;
   border-radius: 999px;
+}
+
+.model-status::before {
+  width: 8px;
+  height: 8px;
+  content: "";
+  background: #9aa5b3;
+  border-radius: 50%;
 }
 
 .model-status.ready {
@@ -276,19 +350,113 @@ textarea:focus {
   background: var(--good-soft);
 }
 
-.configuration-control {
-  display: grid;
-  gap: 4px;
-  max-width: 380px;
-  color: var(--muted);
+.model-status.ready::before {
+  background: var(--good);
 }
 
-.configuration-control select {
-  padding: 8px 10px;
+.model-status.offline {
+  color: #9b2335;
+  background: var(--poor-soft);
+}
+
+.model-status.offline::before {
+  background: var(--poor);
+}
+
+.settings-dialog {
+  width: min(520px, 92vw);
+  padding: 0;
+  color: var(--ink);
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+
+.settings-dialog::backdrop {
+  background: rgba(23, 33, 47, 0.75);
+}
+
+.settings-dialog[open] {
+  animation: dialog-in 160ms ease-out;
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.settings-body {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.dialog-close {
+  width: 34px;
+  height: 34px;
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  background: #eef2f5;
+  border: 0;
+  border-radius: 50%;
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  cursor: pointer;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.setting input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--brand);
+}
+
+.setting span,
+.setting-select {
+  display: grid;
+  gap: 4px;
+}
+
+.setting small,
+.setting-select small {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 400;
+}
+
+.setting-select select {
+  padding: 10px 12px;
   color: var(--ink);
   background: #fff;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border: 1px solid #c4cdd7;
+  border-radius: 10px;
+}
+
+.dialog-done {
+  justify-self: end;
 }
 
 /* ---------- Results header ---------- */
@@ -741,13 +909,33 @@ textarea:focus {
     gap: 8px;
   }
 
-  .form-footer .primary {
+}
+
+@media (max-width: 560px) {
+  .query-row {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-button {
+    justify-self: start;
+  }
+
+  .actions {
     width: 100%;
+  }
+
+  .actions .primary {
+    flex: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .gauge-fill {
     transition: none;
+  }
+
+  .voice-button.listening .voice-icon::after,
+  .settings-dialog[open] {
+    animation: none;
   }
 }

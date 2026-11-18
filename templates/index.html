@@ -33,11 +33,16 @@
         <div class="query-row">
           <textarea id="query" name="query" rows="2" maxlength="1000" required
             placeholder="e.g. Reliable SUV under $18,000, good in snow">Find a reliable SUV under $18,000 with good safety ratings for snow driving and affordable brake maintenance.</textarea>
-          <button id="voice-input" class="voice-button" type="button" aria-pressed="false" title="Speak your request">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21H8v2h8v-2h-3v-2.08A7 7 0 0 0 19 12h-2Z"/>
-            </svg>
-            <span class="visually-hidden">Speak request</span>
+          <button id="voice-input" class="voice-button" type="button" aria-pressed="false">
+            <span class="voice-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21H8v2h8v-2h-3v-2.08A7 7 0 0 0 19 12h-2Z"/>
+              </svg>
+            </span>
+            <span class="voice-text">
+              <strong class="voice-title">Just say it</strong>
+              <small class="voice-hint">Tap and talk</small>
+            </span>
           </button>
         </div>
         <p id="voice-status" class="voice-status" aria-live="polite" hidden></p>
@@ -48,32 +53,16 @@
             <button type="button" data-query="Find an AWD SUV under $18,500 with low mileage and good reliability.">Low-mileage SUV</button>
             <button type="button" data-query="Find a fuel-efficient SUV under $19,000 with good cargo room and reliability.">Fuel-efficient SUV</button>
           </div>
-          <button id="submit" class="primary" type="submit">Find cars</button>
+          <div class="actions">
+            <button id="open-settings" class="settings-button" type="button" aria-haspopup="dialog">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></svg>
+              Settings
+            </button>
+            <span id="model-status" class="model-status" title="AI helper status">Checking AI…</span>
+            <button id="submit" class="primary" type="submit">Find cars</button>
+          </div>
         </div>
 
-        <details class="settings">
-          <summary>Settings <span id="model-status" class="model-status">Checking model…</span></summary>
-          <div class="settings-body">
-            <label class="toggle" for="use-model">
-              <input id="use-model" type="checkbox" checked>
-              <span>Use {{ model_name }} for parsing and summaries</span>
-            </label>
-            <label class="toggle" for="live-nhtsa">
-              <input id="live-nhtsa" type="checkbox">
-              <span>Check live NHTSA recalls</span>
-            </label>
-            <label class="configuration-control" for="configuration">
-              Method (for evaluation)
-              <select id="configuration" name="configuration">
-                <option value="A">A: Classical BM25 baseline</option>
-                <option value="B">B: Flat MiniLM vector search</option>
-                <option value="C" selected>C: Full ontology GraphRAG</option>
-                <option value="D">D: GraphRAG with raw reviews</option>
-                <option value="E">E: GraphRAG without sentiment ranking</option>
-              </select>
-            </label>
-          </div>
-        </details>
       </form>
 
       <div class="results-head">
@@ -83,6 +72,41 @@
       </div>
       <section id="results" class="results" aria-live="polite"></section>
     </main>
+
+    <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+      <form method="dialog" class="settings-body">
+        <header class="dialog-head">
+          <h2 id="settings-title">Settings</h2>
+          <button class="dialog-close" value="close" aria-label="Close settings">×</button>
+        </header>
+        <label class="setting">
+          <input id="use-model" type="checkbox" checked>
+          <span>
+            <strong>Use the AI helper</strong>
+            <small>{{ model_name }} reads your request and writes the summaries. Turn off if it's slow.</small>
+          </span>
+        </label>
+        <label class="setting">
+          <input id="live-nhtsa" type="checkbox">
+          <span>
+            <strong>Check today's recalls</strong>
+            <small>Asks NHTSA for the latest recalls. Adds a few seconds.</small>
+          </span>
+        </label>
+        <label class="setting-select" for="configuration">
+          <strong>How to find and rank cars</strong>
+          <select id="configuration" name="configuration">
+            <option value="C" selected>Recommended: connected facts + owner opinions (C)</option>
+            <option value="A">Basic: keyword matching only (A)</option>
+            <option value="B">Meaning search, no connected facts (B)</option>
+            <option value="D">Connected facts with whole reviews (D)</option>
+            <option value="E">Connected facts, ignore owner opinions (E)</option>
+          </select>
+          <small>Options A, B, D and E each switch one part off, so you can compare them with the recommended mode.</small>
+        </label>
+        <button class="primary dialog-done" value="done">Done</button>
+      </form>
+    </dialog>
 
     <template id="candidate-template">
       <article class="candidate">
