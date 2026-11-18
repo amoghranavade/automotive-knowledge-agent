@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -15,8 +16,6 @@ RATINGS_ENDPOINT = "https://api.nhtsa.gov/SafetyRatings"
 class NHTSAError(RuntimeError):
     pass
 
-
-import re
 
 # Catalog model strings that NHTSA files under another make or name.
 MODEL_ALIASES = {
@@ -81,7 +80,11 @@ def _fetch_recalls_once(make: str, model: str, year: int, timeout: float) -> lis
     results = payload.get("results")
     if not isinstance(results, list):
         raise NHTSAError("NHTSA returned an invalid response")
-    return [_normalize_recall(item) for item in results]
+    seen_ids: set[str] = set()
+    return [
+        _normalize_recall(item, index=index, seen_ids=seen_ids)
+        for index, item in enumerate(results)
+    ]
 
 
 def fetch_safety_rating(
@@ -117,14 +120,26 @@ def fetch_safety_rating(
     if not isinstance(records, list) or not records:
         return None
     record = records[0]
-    rating = _rating(record.get("OverallRating"))
+    frontal = _rating(record.get("OverallFrontCrashRating")) or _mean_rating(
+        record.get("FrontCrashDriversideRating"),
+        record.get("FrontCrashPassengersideRating"),
+    )
+    side = _rating(record.get("OverallSideCrashRating")) or _mean_rating(
+        record.get("SideCrashDriversideRating"),
+        record.get("SideCrashPassengersideRating"),
+        record.get("SidePoleCrashRating"),
+    )
+    rollover = _rating(record.get("RolloverRating")) or _rating(
+        record.get("RolloverRating2")
+    )
+    overall = _rating(record.get("OverallRating"))
     return {
         "vehicle_id": str(vehicle_id),
         "description": record.get("VehicleDescription", ""),
-        "overall_stars": rating,
-        "frontal_stars": _rating(record.get("OverallFrontCrashRating")),
-        "side_stars": _rating(record.get("OverallSideCrashRating")),
-        "rollover_stars": _rating(record.get("RolloverRating")),
+        "overall_stars": overall,
+        "frontal_stars": frontal,
+        "side_stars": side,
+        "rollover_stars": rollover,
         # Pre-2011 models are "Not Rated" overall but keep these per-seat scores.
         "front_driver_stars": _rating(record.get("FrontCrashDriversideRating")),
         "front_passenger_stars": _rating(record.get("FrontCrashPassengersideRating")),
@@ -192,7 +207,14 @@ def _rating(value: Any) -> int | None:
         rating = int(float(value))
     except (TypeError, ValueError):
         return None
-    return rating if 0 <= rating <= 5 else None
+    return rating if 1 <= rating <= 5 else None
+
+
+def _mean_rating(*values: Any) -> int | None:
+    valid = [parsed for parsed in (_rating(value) for value in values) if parsed is not None]
+    if not valid:
+        return None
+    return int(round(sum(valid) / len(valid)))
 
 
 def recalls_with_fallback(
@@ -211,10 +233,31 @@ def recalls_with_fallback(
     return fixtures, "snapshot"
 
 
-def _normalize_recall(item: dict[str, Any]) -> dict[str, Any]:
-    campaign = str(item.get("NHTSACampaignNumber") or "")
+def _normalize_recall(
+    item: dict[str, Any],
+    index: int | None = None,
+    seen_ids: set[str] | None = None,
+) -> dict[str, Any]:
+    campaign = str(item.get("NHTSACampaignNumber") or "").strip()
+    if campaign:
+        base_id = f"nhtsa-{campaign}"
+    elif index is not None:
+        base_id = f"nhtsa-unknown-{index}"
+    else:
+        base_id = "nhtsa-unknown"
+
+    record_id = base_id
+    if seen_ids is not None and record_id in seen_ids:
+        suffix = index if index is not None else len(seen_ids)
+        record_id = f"{base_id}-{suffix}"
+        while record_id in seen_ids:
+            suffix += 1
+            record_id = f"{base_id}-{suffix}"
+    if seen_ids is not None:
+        seen_ids.add(record_id)
+
     return {
-        "id": f"nhtsa-{campaign}" if campaign else "nhtsa-unknown",
+        "id": record_id,
         "campaign_number": campaign,
         "component": item.get("Component") or "unknown",
         "summary": item.get("Summary") or "",
@@ -225,5 +268,5 @@ def _normalize_recall(item: dict[str, Any]) -> dict[str, Any]:
         "source_name": "NHTSA",
         "source_url": "https://www.nhtsa.gov/recalls",
         "captured_at": datetime.now(timezone.utc).isoformat(),
-        "source_id": f"nhtsa-{campaign}" if campaign else "nhtsa-unknown",
+        "source_id": record_id,
     }

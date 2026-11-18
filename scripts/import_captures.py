@@ -54,7 +54,8 @@ def import_captures(catalog: dict, capture_dir: Path) -> int:
                     "source_name": f"{payload['site'].title()} (Playwright capture)",
                     "source_url": product["url"],
                     "captured_at": payload["captured_at"],
-                    "selector_version": payload.get("selector_version", "jsonld-v1"),
+                    "selector_version": product.get("selector_version")
+                    or payload.get("selector_version", "jsonld-v1"),
                     "data_mode": "live_capture",
                 }
             )

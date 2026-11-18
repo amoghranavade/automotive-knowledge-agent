@@ -24,6 +24,9 @@ from clickless.data.repository import validate_catalog
 
 
 KAGGLE_DATASET = "austinreese/craigslist-carstrucks-data"
+KAGGLE_DOWNLOAD_URL = (
+    "https://www.kaggle.com/api/v1/datasets/download/austinreese/craigslist-carstrucks-data"
+)
 OPINRANK_URL = "https://archive.ics.uci.edu/static/public/205/opinrank+review+dataset.zip"
 AMAZON_REVIEW_URL = "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/Automotive.jsonl.gz"
 AMAZON_META_URL = "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/meta_categories/meta_Automotive.jsonl.gz"
@@ -34,6 +37,64 @@ BODY_TYPES = {
     "truck": "Truck",
 }
 DRIVETRAINS = {"4wd": "4WD", "fwd": "FWD", "rwd": "RWD", "awd": "AWD"}
+AWD_CROSSOVERS = {
+    ("subaru", "forester"),
+    ("subaru", "outback"),
+    ("subaru", "impreza"),
+    ("subaru", "legacy"),
+    ("toyota", "rav4"),
+    ("toyota", "highlander"),
+    ("nissan", "murano"),
+    ("nissan", "rogue"),
+    ("honda", "cr-v"),
+    ("honda", "pilot"),
+    ("mazda", "cx-7"),
+    ("mazda", "cx-9"),
+    ("lexus", "rx 350"),
+    ("ford", "escape"),
+    ("ford", "edge"),
+}
+_NOISY_MODEL_TOKENS = {
+    "1owner",
+    "one",
+    "owner",
+    "service",
+    "clean",
+    "title",
+    "only",
+    "miles",
+    "low",
+    "cab",
+    "crew",
+    "supercab",
+    "4x4",
+    "awd",
+    "4wd",
+    "fwd",
+    "rwd",
+    "auto",
+    "automatic",
+    "manual",
+    "v6",
+    "v8",
+}
+_MODEL_NORMALIZATIONS = {
+    "f150": "F-150",
+    "f-150": "F-150",
+    "f250": "F-250",
+    "f-250": "F-250",
+    "f350": "F-350",
+    "f-350": "F-350",
+    "rav4": "RAV4",
+    "cr-v": "CR-V",
+    "crv": "CR-V",
+    "fj cruiser": "FJ Cruiser",
+    "es 350": "ES 350",
+    "es350": "ES 350",
+    "rx 350": "RX 350",
+    "rx350": "RX 350",
+}
+_JUNK_MODELS = {"dr", "truck", "sedan", "suv", "car"}
 GENERATION_RANGES = {
     ("toyota", "fj cruiser"): ((2007, 2014, 2007),),
     ("honda", "accord"): ((2003, 2007, 2003), (2008, 2012, 2008)),
@@ -61,8 +122,39 @@ def _number(value: Any, kind: type[int] | type[float]) -> int | float | None:
 def _model_name(make: str, value: str) -> str:
     cleaned = re.sub(r"\s+", " ", value).strip()
     cleaned = re.sub(rf"^{re.escape(make)}\s+", "", cleaned, flags=re.I)
-    tokens = cleaned.split()
-    return " ".join(tokens[:3]).strip(" -")
+    tokens: list[str] = []
+    for raw_token in cleaned.split():
+        token = raw_token.strip(" -,/")
+        if not token:
+            continue
+        if token.casefold() in _NOISY_MODEL_TOKENS:
+            if tokens:
+                break
+            continue
+        tokens.append(token)
+        if len(tokens) == 3:
+            break
+    if not tokens:
+        return ""
+    joined = " ".join(tokens).strip(" -")
+    normalized = _MODEL_NORMALIZATIONS.get(joined.casefold())
+    if normalized is None:
+        formatted = []
+        for token in tokens:
+            mapped = _MODEL_NORMALIZATIONS.get(token.casefold())
+            if mapped:
+                formatted.append(mapped)
+            elif token.isdigit():
+                formatted.append(token)
+            elif any(ch.isalpha() for ch in token):
+                formatted.append(token.title())
+            else:
+                formatted.append(token.upper())
+        normalized = " ".join(formatted).strip(" -")
+        normalized = _MODEL_NORMALIZATIONS.get(normalized.casefold(), normalized)
+    if len(normalized) < 2 or normalized.casefold() in _JUNK_MODELS:
+        return ""
+    return normalized
 
 
 def generation_id(make: str, model: str, year: int) -> str:
@@ -91,6 +183,8 @@ def craigslist_catalog(
             model = _model_name(make, str(row.get("model") or ""))
             body_type = BODY_TYPES.get(str(row.get("type") or "").casefold())
             drivetrain = DRIVETRAINS.get(str(row.get("drive") or "").casefold())
+            if drivetrain == "4WD" and (make.casefold(), model.casefold()) in AWD_CROSSOVERS:
+                drivetrain = "AWD"
             if not all((year, price, mileage, make, model, body_type, drivetrain)):
                 continue
             if not (2000 <= year <= 2027 and 2_000 <= price <= 80_000 and 500 <= mileage <= 250_000):
@@ -427,9 +521,17 @@ def add_nhtsa(catalog: dict[str, Any]) -> tuple[int, int]:
             recalls = fetch_recalls(vehicle["make"], vehicle["model"], vehicle["year"])
         except NHTSAError:
             recalls = []
-        for item in recalls:
+        seen_recall_ids = {item["id"] for item in catalog["recalls"]}
+        for idx, item in enumerate(recalls):
             item["vehicle_id"] = vehicle["id"]
-            item["id"] = f"{vehicle['id']}-{item['id']}"
+            base_id = f"{vehicle['id']}-{item['id']}"
+            recall_id = base_id
+            suffix = idx
+            while recall_id in seen_recall_ids:
+                recall_id = f"{base_id}-{suffix}"
+                suffix += 1
+            seen_recall_ids.add(recall_id)
+            item["id"] = recall_id
             item["captured_at"] = item.get("captured_at") or captured
             catalog["recalls"].append(item)
             recall_count += 1
@@ -444,13 +546,55 @@ def download_public_data(downloads: Path, amazon_records: int = 50_000) -> dict[
     craigslist_dir.mkdir(exist_ok=True)
     vehicles_csv = craigslist_dir / "vehicles.csv"
     if not vehicles_csv.exists():
-        kaggle = shutil.which("kaggle")
-        if not kaggle:
-            raise RuntimeError("Install the Kaggle CLI or place vehicles.csv in data/downloads/craigslist.")
-        subprocess.run(
-            [kaggle, "datasets", "download", KAGGLE_DATASET, "--path", str(craigslist_dir), "--unzip"],
-            check=True,
-        )
+        downloaded = False
+        try:
+            import kagglehub
+
+            dataset_dir = Path(kagglehub.dataset_download(KAGGLE_DATASET))
+            candidate_csv = next(dataset_dir.rglob("vehicles.csv"), None)
+            if candidate_csv is not None and candidate_csv.is_file():
+                shutil.copy2(candidate_csv, vehicles_csv)
+                downloaded = vehicles_csv.exists()
+        except Exception:
+            downloaded = False
+
+        if not downloaded:
+            venv_kaggle = Path(sys.executable).with_name(
+                "kaggle.exe" if sys.platform.startswith("win") else "kaggle"
+            )
+            kaggle_bin = str(venv_kaggle) if venv_kaggle.exists() else shutil.which("kaggle")
+            if kaggle_bin:
+                try:
+                    subprocess.run(
+                        [kaggle_bin, "datasets", "download", KAGGLE_DATASET, "--path", str(craigslist_dir), "--unzip"],
+                        check=True,
+                    )
+                    downloaded = vehicles_csv.exists()
+                except (subprocess.SubprocessError, OSError):
+                    downloaded = False
+
+        if not downloaded:
+            archive_path = craigslist_dir / "craigslist-carstrucks-data.zip"
+            try:
+                _download(KAGGLE_DOWNLOAD_URL, archive_path)
+                with zipfile.ZipFile(archive_path) as bundle:
+                    csv_member = next(
+                        (
+                            name
+                            for name in bundle.namelist()
+                            if Path(name).name.casefold() == "vehicles.csv"
+                        ),
+                        None,
+                    )
+                    if csv_member is None:
+                        raise RuntimeError("Kaggle archive did not contain vehicles.csv")
+                    if csv_member == "vehicles.csv":
+                        bundle.extract(csv_member, craigslist_dir)
+                    else:
+                        with bundle.open(csv_member) as source, vehicles_csv.open("wb") as target:
+                            shutil.copyfileobj(source, target)
+            finally:
+                archive_path.unlink(missing_ok=True)
 
     opinrank = downloads / "OpinRankDataset.zip"
     if not opinrank.exists():
@@ -477,7 +621,8 @@ def _download(url: str, destination: Path) -> None:
         response.raise_for_status()
         with destination.open("wb") as handle:
             for chunk in response.iter_content(1024 * 1024):
-                handle.write(chunk)
+                if chunk:
+                    handle.write(chunk)
 
 
 def _stream_gzip_json(url: str, destination: Path, records: int) -> None:

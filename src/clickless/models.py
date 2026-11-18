@@ -11,6 +11,7 @@ class Constraints:
     min_year: int | None = None
     body_style: str | None = None
     drivetrain: str | None = None
+    make: str | None = None
     preferences: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

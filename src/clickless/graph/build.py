@@ -41,15 +41,38 @@ def build_graph(catalog: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     ):
         for record in catalog[collection]:
             add_node(label, record["id"], _without(record, "id", "vehicle_id"))
-            add_edge(record["vehicle_id"], relation, record["id"])
+            edge_props: dict[str, Any] = {}
+            if relation == "HAS_RATING":
+                edge_props["match_granularity"] = "variant_tested"
+            elif relation == "AFFECTED_BY":
+                edge_props["match_granularity"] = "make_model_year"
+            add_edge(record["vehicle_id"], relation, record["id"], **edge_props)
             if collection == "listings":
                 add_edge(record["id"], "LISTING_OF", record["vehicle_id"])
             _add_provenance(record, add_node, add_edge)
 
     for review in catalog["reviews"]:
         add_node("Review", review["id"], _without(review, "id", "vehicle_id", "aspects"))
-        add_edge(review["vehicle_id"], "HAS_REVIEW", review["id"], match_type=review["match_type"])
-        add_edge(review["id"], "REVIEWS", review["vehicle_id"])
+        match_type = str(review.get("match_type") or "exact_year")
+        review_granularity = (
+            "exact_year"
+            if match_type == "exact_year"
+            else ("same_generation" if match_type == "same_generation" else match_type)
+        )
+        add_edge(
+            review["vehicle_id"],
+            "HAS_REVIEW",
+            review["id"],
+            match_type=match_type,
+            match_granularity=review_granularity,
+        )
+        add_edge(
+            review["id"],
+            "REVIEWS",
+            review["vehicle_id"],
+            match_type=match_type,
+            match_granularity=review_granularity,
+        )
         _add_provenance(review, add_node, add_edge)
         for aspect in review["aspects"]:
             add_node("AspectAssertion", aspect["id"], _without(aspect, "id"))
@@ -66,8 +89,15 @@ def build_graph(catalog: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
 
     for part in catalog["parts"]:
         add_node("AftermarketProduct", part["id"], _without(part, "id", "vehicle_id"))
-        relation = "COMPATIBLE_WITH" if part["verified_fitment"] else "RELATED_PRODUCT"
-        add_edge(part["vehicle_id"], relation, part["id"])
+        verified = bool(part.get("verified_fitment"))
+        relation = "COMPATIBLE_WITH" if verified else "RELATED_PRODUCT"
+        part_granularity = "verified_fitment" if verified else "make_model_subsystem"
+        add_edge(
+            part["vehicle_id"],
+            relation,
+            part["id"],
+            match_granularity=part_granularity,
+        )
         component_id = component_node_id(part["subsystem"])
         add_node("SubsystemComponent", component_id, {"name": part["subsystem"]})
         add_edge(part["id"], "FOR_COMPONENT", component_id)

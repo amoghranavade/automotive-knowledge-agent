@@ -1,19 +1,38 @@
+import os
 from pathlib import Path
+from typing import Any
 
 from datetime import datetime, timezone
 
 from flask import Flask, jsonify, render_template, request
 
-from .llm import DEFAULT_QWEN_MODEL, QwenClient, QwenError
+from . import config  # noqa: F401
 from .data import CatalogError, load_catalog
+from .llm import DEFAULT_QWEN_MODEL, QwenClient, QwenError
 from .retail import BestBuyClient, EbayClient
 from .retail.base import RetailError
+from .service import recommend
 from .sources import AutoDevClient, MarketCheckClient, SerpApiClient
 from .sources.base import SourceError
-from .service import recommend
+from .verifier import VerificationError
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _parse_candidate_limit(raw_value: Any) -> int:
+    """Validate optional candidate_limit as an integer in 1..10."""
+    if raw_value is None:
+        return 3
+    if isinstance(raw_value, (bool, float)):
+        raise ValueError("candidate_limit must be an integer between 1 and 10.")
+    try:
+        limit = int(raw_value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("candidate_limit must be an integer between 1 and 10.") from error
+    if not 1 <= limit <= 10:
+        raise ValueError("candidate_limit must be between 1 and 10.")
+    return limit
 
 
 def create_app() -> Flask:
@@ -37,10 +56,19 @@ def create_app() -> Flask:
 
     @app.get("/api/data-status")
     def data_status():
+        graph_backend = os.getenv("CLICKLESS_GRAPH_BACKEND", "memory")
+        retrieval_mode = os.getenv("CLICKLESS_RETRIEVAL_MODE", "graph")
         try:
             catalog = load_catalog()
         except CatalogError as error:
-            return jsonify({"ready": False, "error": str(error)}), 503
+            return jsonify(
+                {
+                    "ready": False,
+                    "error": str(error),
+                    "graph_backend": graph_backend,
+                    "retrieval_mode": retrieval_mode,
+                }
+            ), 503
         live_listings = [
             item for item in catalog["listings"] if item.get("data_mode") == "live"
         ]
@@ -51,6 +79,8 @@ def create_app() -> Flask:
             {
                 "ready": True,
                 "snapshot": catalog["snapshot"],
+                "graph_backend": graph_backend,
+                "retrieval_mode": retrieval_mode,
                 "counts": {
                     name: len(catalog[name])
                     for name in (
@@ -111,22 +141,38 @@ def create_app() -> Flask:
 
     @app.post("/api/recommend")
     def recommendations():
-        body = request.get_json(silent=True) or {}
-        query = str(body.get("query", "")).strip()
+        raw_body = request.get_json(silent=True)
+        if raw_body is None:
+            body = {}
+        elif isinstance(raw_body, dict):
+            body = raw_body
+        else:
+            return jsonify({"error": "Request body must be a JSON object."}), 400
+
+        query = str(body.get("query") or "").strip()
         if not query:
             return jsonify({"error": "Enter a vehicle request."}), 400
         if len(query) > 1000:
             return jsonify({"error": "Keep the request under 1,000 characters."}), 400
 
+        raw_config = body.get("configuration")
+        configuration = "C" if raw_config is None else str(raw_config)
+
         try:
+            candidate_limit = _parse_candidate_limit(body.get("candidate_limit", 3))
             return jsonify(
                 recommend(
                     query,
                     live_nhtsa=bool(body.get("live_nhtsa", False)),
                     use_model=bool(body.get("use_model", True)),
-                    configuration=str(body.get("configuration", "C")),
+                    configuration=configuration,
+                    candidate_limit=candidate_limit,
                 )
             )
+        except CatalogError as error:
+            return jsonify({"error": str(error)}), 503
+        except VerificationError as error:
+            return jsonify({"error": str(error)}), 500
         except ValueError as error:
             return jsonify({"error": str(error)}), 400
 

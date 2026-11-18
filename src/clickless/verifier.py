@@ -77,9 +77,47 @@ def _require_equal(value: Any, evidence: dict[str, Any], fact: str) -> None:
 
 
 def _verify_numeric_claims(text: str, evidence: list[dict[str, Any]]) -> None:
+    price_pattern = r"\$\s*([\d,]+(?:\.\d+)?)"
+    stated_prices = [_number(match) for match in re.findall(price_pattern, text, re.I)]
+    if stated_prices:
+        exact_prices: set[float] = set()
+        decimal_product_prices: set[float] = set()
+        for item in evidence:
+            item_prices: list[float] = []
+            fact_price = item.get("facts", {}).get("price")
+            if fact_price is not None:
+                item_prices.append(float(fact_price))
+            item_prices.extend(
+                _number(match)
+                for match in re.findall(price_pattern, str(item.get("text") or ""), re.I)
+            )
+            exact_prices.update(item_prices)
+            if item.get("type") != "listing":
+                decimal_product_prices.update(
+                    val for val in item_prices if not val.is_integer()
+                )
+        for value in stated_prices:
+            if value in exact_prices:
+                continue
+            if value.is_integer() and any(
+                abs(value - fact_val) < 1.0 for fact_val in decimal_product_prices
+            ):
+                continue
+            raise VerificationError("Claim contains an unsupported price value")
+
+    stated_mileages = _extract_mileages(text)
+    if stated_mileages:
+        supported_mileages = {
+            float(item["facts"]["mileage"])
+            for item in evidence
+            if "mileage" in item.get("facts", {}) and item["facts"]["mileage"] is not None
+        }
+        for item in evidence:
+            supported_mileages.update(_extract_mileages(str(item.get("text") or "")))
+        if any(value not in supported_mileages for value in stated_mileages):
+            raise VerificationError("Claim contains an unsupported mileage value")
+
     checks = (
-        (r"\$\s*([\d,]+(?:\.\d+)?)", "price"),
-        (r"([\d,]+)\s*(?:miles|mi)\b", "mileage"),
         (r"(\d(?:\.\d+)?)\s*(?:-|\s)?stars?\b", "ncap_stars"),
         (r"(\d+)\s+(?:model-year\s+)?recall", "recall_count"),
     )
@@ -101,6 +139,15 @@ def _verify_numeric_claims(text: str, evidence: list[dict[str, Any]]) -> None:
             supported.add(float(sum(item["type"] == "recall" for item in evidence)))
         if any(value not in supported for value in stated):
             raise VerificationError(f"Claim contains an unsupported {fact} value")
+
+
+def _extract_mileages(text: str) -> list[float]:
+    values = [_number(match) for match in re.findall(r"([\d,]+)\s*(?:miles|mi)\b", text, re.I)]
+    values.extend(
+        float(match) * 1000.0
+        for match in re.findall(r"(\d+(?:\.\d+)?)\s*k\s*(?:miles|mi)\b", text, re.I)
+    )
+    return values
 
 
 def _number(value: str) -> float:

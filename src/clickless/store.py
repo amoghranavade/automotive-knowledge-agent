@@ -29,10 +29,13 @@ def load_vehicles(live_nhtsa: bool = False) -> list[dict[str, Any]]:
         if not bundle["listings"]:
             continue
 
-        live_listings = [
-            item for item in bundle["listings"] if item.get("data_mode") == "live"
+        listings = [
+            _listing(item)
+            for item in sorted(
+                bundle["listings"],
+                key=lambda r: (r.get("data_mode") != "live", r["price"], r["mileage"]),
+            )
         ]
-        listing = min(live_listings or bundle["listings"], key=lambda item: item["price"])
         safety_record = bundle["safety_ratings"][0] if bundle["safety_ratings"] else None
         recalls, recall_mode = recalls_with_fallback(
             catalog,
@@ -69,7 +72,8 @@ def load_vehicles(live_nhtsa: bool = False) -> list[dict[str, Any]]:
                 "trim": vehicle["trim"],
                 "body_style": vehicle["body_type"].lower(),
                 "drivetrain": vehicle["drivetrain"],
-                "listing": _listing(listing),
+                "listing": listings[0],
+                "listings": listings,
                 "safety": _safety(safety_record, recalls, recall_mode),
                 "reviews": [
                     _review(item) for item in bundle["reviews"] + indirect_reviews
@@ -90,8 +94,18 @@ def with_live_recalls(vehicle: dict[str, Any]) -> dict[str, Any]:
         records = fetch_recalls(vehicle["make"], vehicle["model"], vehicle["year"])
     except NHTSAError:
         return updated
-    updated["safety"]["recalls"] = [_recall(item) for item in records]
-    updated["safety"]["recall_count"] = len(records)
+    seen_ids: dict[str, int] = {}
+    recalls = []
+    for item in records:
+        recall = _recall(item)
+        source_id = recall["source_id"]
+        count = seen_ids.get(source_id, 0)
+        seen_ids[source_id] = count + 1
+        if count:
+            recall["source_id"] = f"{source_id}-{count}"
+        recalls.append(recall)
+    updated["safety"]["recalls"] = recalls
+    updated["safety"]["recall_count"] = len(recalls)
     updated["safety"]["recall_mode"] = "live"
     return updated
 
@@ -196,6 +210,7 @@ def _product(record: dict[str, Any]) -> dict[str, Any]:
         "url": record["source_url"],
         "observed_at": record["captured_at"],
         "data_mode": record.get("data_mode", "frozen_snapshot"),
+        "price": record["price"],
         "text": f"{record['name']} listed at ${record['price']:,.2f}; {fitment}.",
         "verified_fitment": record["verified_fitment"],
     }

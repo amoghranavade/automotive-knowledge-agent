@@ -13,7 +13,7 @@ EVIDENCE_COLLECTIONS = ("listings", "safety_ratings", "recalls", "reviews", "par
 PROVENANCE_FIELDS = ("source_id", "source_name", "source_url", "captured_at")
 
 
-_CATALOG_CACHE: dict[str, tuple[int, dict[str, Any]]] = {}
+_CATALOG_CACHE: dict[str, tuple[tuple[int, int], dict[str, Any]]] = {}
 
 
 class CatalogError(ValueError):
@@ -29,13 +29,15 @@ def load_catalog(path: str | Path | None = None) -> dict[str, Any]:
         raise CatalogError(
             f"Processed catalog not found at {catalog_path}. Run clickless-build-data first."
         )
-    stamp = (str(catalog_path), catalog_path.stat().st_mtime_ns)
-    cached = _CATALOG_CACHE.get(stamp[0])
-    if cached is not None and cached[0] == stamp[1]:
+    resolved_key = str(catalog_path.resolve())
+    stat = catalog_path.stat()
+    stamp = (stat.st_mtime_ns, stat.st_size)
+    cached = _CATALOG_CACHE.get(resolved_key)
+    if cached is not None and cached[0] == stamp:
         return cached[1]
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     validate_catalog(catalog)
-    _CATALOG_CACHE[stamp[0]] = (stamp[1], catalog)
+    _CATALOG_CACHE[resolved_key] = (stamp, catalog)
     return catalog
 
 
