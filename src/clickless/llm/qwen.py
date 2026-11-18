@@ -80,14 +80,20 @@ class QwenClient:
                 ],
                 "temperature": 0,
                 "max_tokens": max_tokens,
+                "chat_template_kwargs": {"enable_thinking": False},
                 "response_format": {"type": "json_object"},
                 "stream": False,
             },
         )
         try:
-            content = payload["choices"][0]["message"]["content"]
+            choice = payload["choices"][0]
+            content = choice["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise QwenResponseError("Qwen returned an invalid chat response") from exc
+        if choice.get("finish_reason") == "length":
+            raise QwenResponseError(
+                "Qwen reached the output limit before returning complete JSON"
+            )
         if not isinstance(content, str):
             raise QwenResponseError("Qwen returned non-text content")
         cleaned = content.strip()

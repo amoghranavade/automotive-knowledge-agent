@@ -92,7 +92,7 @@ def parse_request_with_model(
 def apply_model_aspects(
     client: Any,
     vehicles: list[dict[str, Any]],
-    max_reviews_per_vehicle: int = 6,
+    max_reviews_per_vehicle: int = 1,
 ) -> list[dict[str, Any]]:
     reviews = [
         {"source_id": review["source_id"], "text": review["text"]}
@@ -112,7 +112,7 @@ def apply_model_aspects(
         "polarities: positive, negative, neutral, mixed. Allowed subsystems: engine, "
         "transmission, brakes, suspension, electrical, battery, cabin, drivetrain, "
         "body, steering, fuel_system, airbags, tires, unknown. Do not add claims not "
-        "present in the text."
+        "present in the text. Return at most three assertions per review."
     )
     review_text = {item["source_id"]: item["text"] for item in reviews}
     extracted: dict[str, dict[str, list[float]]] = {}
@@ -138,7 +138,7 @@ def apply_model_aspects(
                 },
             }
         )
-        payload = client.complete_json(system, user, max_tokens=1800)
+        payload = client.complete_json(system, user, max_tokens=1200)
         response_reviews = payload.get("reviews")
         if not isinstance(response_reviews, list):
             raise QwenResponseError("Qwen review response is missing a reviews list")
@@ -248,7 +248,7 @@ def apply_grounded_summaries(
         "one or more supports containing a supplied evidence ID and an exact quote from "
         "that evidence. Do not create or modify prices, mileage, ratings, "
         "recall counts, fitment, or repair costs. Do not present indirect evidence as an "
-        "exact-year fact. Return no more than two strengths and two cautions per vehicle."
+        "exact-year fact. Return one strength and one caution per vehicle."
     )
     user = json.dumps(
         {
@@ -278,7 +278,7 @@ def apply_grounded_summaries(
             },
         }
     )
-    payload = client.complete_json(system, user, max_tokens=1500)
+    payload = client.complete_json(system, user, max_tokens=1200)
     by_id = {candidate["id"]: candidate for candidate in deepcopy(candidates)}
     response_candidates = payload.get("candidates")
     if not isinstance(response_candidates, list):
@@ -310,8 +310,8 @@ def apply_grounded_summaries(
 
 def _summary_evidence(
     candidate: dict[str, Any],
-    max_records: int = 12,
-    max_chars: int = 10_000,
+    max_records: int = 4,
+    max_chars: int = 2_500,
 ) -> list[dict[str, Any]]:
     by_id = {item["id"]: item for item in candidate["evidence"]}
     ordered_ids = []

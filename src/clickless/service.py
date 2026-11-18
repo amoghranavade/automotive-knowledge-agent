@@ -256,7 +256,7 @@ def recommend(
         preliminary = rank_vehicles(vehicles, constraints)
         if not preliminary:
             preliminary = rank_closest_vehicles(vehicles, constraints)
-        extraction_pool = [item[0] for item in preliminary[:12]]
+        extraction_pool = [item[0] for item in preliminary[:4]]
         try:
             enriched = apply_model_aspects(client, extraction_pool)
             by_id = {vehicle["id"]: vehicle for vehicle in enriched}
