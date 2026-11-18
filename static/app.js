@@ -15,6 +15,8 @@ const template = document.querySelector("#candidate-template");
 const notices = document.querySelector("#notices");
 const refineControl = document.querySelector("#refine-control");
 const refineToggle = document.querySelector("#refine");
+const followUpQuestion = document.querySelector("#follow-up-question");
+
 let previousQuery = "";
 let awaitingAnswer = false;
 
@@ -23,8 +25,27 @@ const money = new Intl.NumberFormat("en-US", {
   currency: "USD",
   maximumFractionDigits: 0,
 });
-
 const number = new Intl.NumberFormat("en-US");
+
+const RATINGS = [
+  ["safety", "Safety"],
+  ["reliability", "Reliability"],
+  ["maintenance", "Upkeep cost"],
+  ["fuel_economy", "Fuel economy"],
+  ["cargo", "Cargo space"],
+  ["snow", "Winter traction"],
+];
+
+const PRIORITY_NAMES = {
+  price: "Low price",
+  mileage: "Low mileage",
+  safety: "Safety",
+  reliability: "Reliability",
+  maintenance: "Upkeep cost",
+  fuel_economy: "Fuel economy",
+  cargo: "Cargo space",
+  snow: "Winter traction",
+};
 
 loadModelStatus();
 loadDataStatus();
@@ -33,6 +54,8 @@ setupVoiceInput();
 document.querySelectorAll("[data-query]").forEach((button) => {
   button.addEventListener("click", () => {
     queryInput.value = button.dataset.query;
+    awaitingAnswer = false;
+    refineControl.hidden = true;
     queryInput.focus();
   });
 });
@@ -57,11 +80,11 @@ form.addEventListener("submit", async (event) => {
       }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "The request failed.");
+    if (!response.ok) throw new Error(data.error || "The search failed. Try again.");
     render(data);
   } catch (error) {
     statusBox.textContent = error.name === "AbortError"
-      ? "The request took too long. Check the model server and try again."
+      ? "The search took too long. Turn off the language model in Settings and try again."
       : error.message;
     statusBox.classList.add("error");
   } finally {
@@ -80,16 +103,416 @@ function buildQuery() {
 
 function setLoading(loading) {
   submitButton.disabled = loading;
-  submitButton.textContent = loading ? "Finding vehicles…" : "Find vehicles";
-  if (loading) statusBox.textContent = "Checking available vehicles and evidence…";
+  submitButton.textContent = loading ? "Searching…" : "Find cars";
+  if (loading) statusBox.textContent = "Checking listings, reviews, and safety records…";
 }
+
+function clearOutput() {
+  statusBox.classList.remove("error");
+  notices.hidden = true;
+  notices.textContent = "";
+  summary.hidden = true;
+  summary.replaceChildren();
+  results.replaceChildren();
+}
+
+/* ---------- Page-level rendering ---------- */
+
+function render(data) {
+  const candidates = data.candidates || [];
+  const questions = data.clarification_questions || [];
+  renderSummary(data.parsed || {});
+
+  previousQuery = data.query || "";
+  awaitingAnswer = questions.length > 0;
+  refineControl.hidden = !awaitingAnswer;
+  if (awaitingAnswer) {
+    followUpQuestion.textContent = questions.join(" ");
+    queryInput.value = "";
+    queryInput.placeholder = "Type your answer, e.g. under $15,000";
+  }
+
+  const noticeText = data.model_notice;
+  if (noticeText) {
+    notices.textContent = noticeText;
+    notices.hidden = false;
+  }
+
+  if (!candidates.length) {
+    statusBox.textContent = data.message || "No cars match yet. Try a higher budget or fewer limits.";
+    return;
+  }
+  statusBox.textContent = data.match_mode === "closest_alternatives"
+    ? "Nothing meets every limit. Here are the closest options."
+    : `Top ${candidates.length} ${candidates.length === 1 ? "match" : "matches"}`;
+  candidates.forEach((candidate, index) => renderCandidate(candidate, index, data));
+}
+
+function renderSummary(parsed) {
+  const chips = [];
+  if (parsed.max_price) chips.push(`Under ${money.format(parsed.max_price)}`);
+  if (parsed.body_style) chips.push(parsed.body_style === "suv" ? "SUV" : capitalize(parsed.body_style));
+  if (parsed.drivetrain) chips.push(parsed.drivetrain);
+  if (parsed.max_mileage) chips.push(`Under ${number.format(parsed.max_mileage)} mi`);
+  if (parsed.min_year) chips.push(`${parsed.min_year} or newer`);
+  const priorities = Object.entries(parsed.preferences || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([key]) => PRIORITY_NAMES[key] || capitalize(key));
+
+  if (!chips.length && !priorities.length) return;
+  const limits = chipGroup("You asked for", chips, "chip");
+  const ranked = chipGroup("Ranked by", priorities, "chip chip-soft");
+  summary.append(...[limits, ranked].filter(Boolean));
+  summary.hidden = false;
+}
+
+function chipGroup(title, values, className) {
+  if (!values.length) return null;
+  const group = document.createElement("div");
+  group.className = "chip-group";
+  const label = document.createElement("span");
+  label.className = "chip-label";
+  label.textContent = title;
+  group.append(label);
+  values.forEach((value) => {
+    const chip = document.createElement("span");
+    chip.className = className;
+    chip.textContent = value;
+    group.append(chip);
+  });
+  return group;
+}
+
+/* ---------- Card rendering ---------- */
+
+function renderCandidate(candidate, index, data) {
+  const node = template.content.cloneNode(true);
+  const card = node.querySelector(".candidate");
+  const evidence = candidate.evidence || [];
+  const evidenceById = new Map(evidence.map((item) => [item.id, item]));
+  const unmet = candidate.constraint_violations || [];
+
+  node.querySelector(".rank").textContent = candidate.rank || index + 1;
+  node.querySelector(".vehicle-name").textContent = vehicleName(candidate);
+  node.querySelector(".facts").append(...factSpans(candidate));
+
+  renderGauge(node.querySelector(".gauge"), candidate.score, unmet.length > 0);
+
+  if (unmet.length) {
+    const line = node.querySelector(".unmet");
+    line.textContent = unmet[0];
+    line.hidden = false;
+  }
+
+  renderBadges(node.querySelector(".badges"), candidate);
+  renderRatings(node.querySelector(".ratings"), candidate);
+  renderHighlights(node.querySelector(".highlights"), candidate, evidenceById);
+  renderDetails(node, candidate, data, evidenceById);
+
+  const source = node.querySelector(".source-link");
+  const listingEvidence = evidence.find((item) => item.type === "listing");
+  const url = listingEvidence?.url || candidate.source_url;
+  if (url) {
+    source.href = url;
+    source.textContent = candidate.listing_data_mode === "live" ? "View live listing" : "View listing";
+  } else {
+    source.remove();
+  }
+
+  const liveButton = node.querySelector(".live-check");
+  const liveBox = node.querySelector(".live-results");
+  liveButton.addEventListener("click", () => liveCheck(candidate.id, liveButton, liveBox));
+
+  card.dataset.rank = String(index + 1);
+  results.append(node);
+}
+
+function factSpans(candidate) {
+  const facts = [];
+  if (candidate.price != null) facts.push(["price", money.format(candidate.price)]);
+  if (candidate.mileage != null) facts.push(["", `${number.format(candidate.mileage)} mi`]);
+  if (candidate.drivetrain) facts.push(["", candidate.drivetrain]);
+  if (candidate.body_style) facts.push(["", candidate.body_style === "suv" ? "SUV" : capitalize(candidate.body_style)]);
+  return facts.map(([className, text]) => {
+    const span = document.createElement("span");
+    if (className) span.className = className;
+    span.textContent = text;
+    return span;
+  });
+}
+
+function renderGauge(gauge, score, missesLimits) {
+  const value = Math.round(Math.max(0, Math.min(1, Number(score) || 0)) * 100);
+  const level = missesLimits ? "poor" : value >= 65 ? "good" : value >= 45 ? "fair" : "poor";
+  const label = missesLimits
+    ? "Misses a limit"
+    : { good: "Strong match", fair: "Fair match", poor: "Weak match" }[level];
+  gauge.classList.add(`is-${level}`);
+  gauge.querySelector(".gauge-fill").style.strokeDasharray = `${value} 100`;
+  gauge.querySelector(".gauge-value").textContent = value;
+  gauge.querySelector(".gauge-label").textContent = label;
+  gauge.setAttribute("aria-label", `Overall match ${value} out of 100: ${label}`);
+}
+
+function renderBadges(list, candidate) {
+  const badges = [];
+  if (candidate.safety_rating) {
+    badges.push(["good", `${candidate.safety_rating}★ crash rating`]);
+  } else {
+    badges.push(["none", "No crash rating"]);
+  }
+  badges.push(
+    candidate.recall_count
+      ? ["fair", `${candidate.recall_count} recall${candidate.recall_count === 1 ? "" : "s"}`]
+      : ["good", "No recalls on file"],
+  );
+  badges.push(
+    candidate.listing_data_mode === "live" ? ["live", "Live listing"] : ["none", "Saved listing"],
+  );
+  if (candidate.tier !== "complete") badges.push(["none", "Limited data"]);
+
+  badges.forEach(([level, text]) => {
+    const item = document.createElement("li");
+    item.className = `badge is-${level}`;
+    item.textContent = text;
+    list.append(item);
+  });
+}
+
+function renderRatings(list, candidate) {
+  const components = candidate.score_components || {};
+  RATINGS.forEach(([key, name]) => {
+    const raw = components[key];
+    const item = document.createElement("li");
+    item.className = "rating";
+
+    const label = document.createElement("span");
+    label.className = "rating-name";
+    label.textContent = name;
+
+    const meter = document.createElement("span");
+    meter.className = "segments";
+    const outOfFive = raw == null ? null : Math.max(0, Math.min(5, Number(raw) * 5));
+    const filled = outOfFive == null ? 0 : Math.round(outOfFive);
+    const level = outOfFive == null ? "none" : outOfFive >= 3.5 ? "good" : outOfFive >= 2.5 ? "fair" : "poor";
+    meter.classList.add(`is-${level}`);
+    for (let index = 0; index < 5; index += 1) {
+      const segment = document.createElement("span");
+      if (index < filled) segment.className = "on";
+      meter.append(segment);
+    }
+
+    const value = document.createElement("span");
+    value.className = "rating-value";
+    value.textContent = outOfFive == null ? "No data" : outOfFive.toFixed(1);
+
+    item.setAttribute(
+      "aria-label",
+      outOfFive == null ? `${name}: no data` : `${name}: ${outOfFive.toFixed(1)} out of 5`,
+    );
+    item.append(label, meter, value);
+    list.append(item);
+  });
+}
+
+function renderHighlights(list, candidate, evidenceById) {
+  const bundles = candidate.aspect_bundles || [];
+  const pro = bundles.find((bundle) => bundle.positive)?.positive
+    || (candidate.pros || []).find((claim) => !/NHTSA/i.test(claim.text));
+  let con = bundles.find((bundle) => bundle.negative)?.negative
+    || (candidate.cautions || []).find((claim) => !/fitment|indirect|recall/i.test(claim.text));
+  if (con && pro && con.text === pro.text) con = null;
+
+  [["good", "✓", pro], ["fair", "!", con]].forEach(([level, icon, claim]) => {
+    if (!claim?.text) return;
+    const item = document.createElement("li");
+    item.className = `highlight is-${level}`;
+    const mark = document.createElement("span");
+    mark.className = "highlight-icon";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = icon;
+    const text = document.createElement("span");
+    text.className = "highlight-text";
+    text.textContent = shorten(claim.text, 110);
+    text.title = claim.text;
+    const source = (claim.evidence_ids || []).map((id) => evidenceById.get(id)).find((entry) => entry?.url);
+    if (source) text.append(" ", sourceLink(source));
+    item.append(mark, text);
+    list.append(item);
+  });
+}
+
+function renderDetails(node, candidate, data, evidenceById) {
+  const stages = data.model_stages || {};
+  const backend = (candidate.graph_paths || [])[0]?.backend;
+  const rows = [
+    ["Method", `Configuration ${data.configuration || "C"}`],
+    ["Request parsing", stages.parsing === "qwen" ? "Qwen" : "Rules"],
+    ["Review aspects", { qwen: "Qwen", vader: "VADER", stored_lexicon: "Lexicon" }[stages.review_extraction] || "Lexicon"],
+    ["Evidence search", readableRetrieval(candidate.retrieval_mode)],
+    ["Knowledge graph", backend ? (backend === "neo4j" ? "Neo4j" : "In-memory graph") : "Not used"],
+    ["Summaries", stages.summaries === "qwen" ? "Qwen" : "Templates"],
+  ];
+  const method = node.querySelector(".method");
+  rows.forEach(([term, value]) => {
+    const dt = document.createElement("dt");
+    dt.textContent = term;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    method.append(dt, dd);
+  });
+
+  const sections = node.querySelector(".sections");
+  const bundles = [];
+  (candidate.aspect_bundles || []).forEach((bundle) => {
+    const name = PRIORITY_NAMES[bundle.aspect] || capitalize(bundle.aspect);
+    if (bundle.positive) bundles.push({ text: `${name}: “${bundle.positive.text}”`, evidence_ids: bundle.positive.evidence_ids, level: "good" });
+    if (bundle.negative) bundles.push({ text: `${name}: “${bundle.negative.text}”`, evidence_ids: bundle.negative.evidence_ids, level: "fair" });
+  });
+  addSection(sections, "What owners say", bundles, evidenceById);
+  addSection(
+    sections,
+    "Recalls",
+    (candidate.evidence || []).filter((item) => item.type === "recall"),
+    evidenceById,
+  );
+  addSection(sections, "Graph connections", candidate.graph_paths || [], evidenceById);
+  addSection(
+    sections,
+    "Most relevant passages",
+    (candidate.retrieved_passages || []).slice(0, 3).map((item) => ({
+      text: item.text,
+      evidence_ids: [item.evidence_id],
+    })),
+    evidenceById,
+  );
+  addSection(
+    sections,
+    "Missing data",
+    (candidate.missing_evidence || []).map((key) => PRIORITY_NAMES[key] || capitalize(key)),
+    evidenceById,
+  );
+}
+
+function addSection(container, title, items, evidenceById) {
+  if (!items.length) return;
+  const section = document.createElement("section");
+  section.className = "detail-section";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  const list = document.createElement("ul");
+  items.slice(0, 4).forEach((item) => {
+    const entry = document.createElement("li");
+    if (item.level) entry.className = `is-${item.level}`;
+    const text = typeof item === "string" ? item : item.text || "";
+    entry.append(document.createTextNode(shorten(text, 180)));
+    const source = typeof item === "object" && item.url
+      ? item
+      : (item.evidence_ids || []).map((id) => evidenceById.get(id)).find((evidence) => evidence?.url);
+    if (source) entry.append(" ", sourceLink(source));
+    list.append(entry);
+  });
+  section.append(heading, list);
+  container.append(section);
+}
+
+function sourceLink(evidence) {
+  const link = document.createElement("a");
+  link.className = "source-chip";
+  link.href = evidence.url;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = "Source";
+  link.title = evidence.source || "Source";
+  return link;
+}
+
+/* ---------- Live check ---------- */
+
+async function liveCheck(vehicleId, button, box) {
+  button.disabled = true;
+  button.textContent = "Checking…";
+  box.hidden = false;
+  box.replaceChildren();
+  try {
+    const response = await fetch("/api/live-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vehicle_id: vehicleId }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Live check failed.");
+    const heading = document.createElement("p");
+    heading.className = "live-heading";
+    heading.textContent = data.message
+      || `${data.listings.length} live listing${data.listings.length === 1 ? "" : "s"} from ${data.sources.join(", ")}, checked ${new Date(data.checked_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    box.append(heading);
+    const list = document.createElement("ul");
+    data.listings.forEach((item) => {
+      const entry = document.createElement("li");
+      const price = item.price != null ? money.format(item.price) : "No price";
+      const miles = item.mileage != null ? `, ${number.format(item.mileage)} mi` : "";
+      const link = document.createElement("a");
+      link.href = item.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = `${price}${miles}`;
+      entry.append(link, ` on ${item.source}`);
+      list.append(entry);
+    });
+    if (data.listings.length) box.append(list);
+    (data.errors || []).forEach((message) => {
+      const error = document.createElement("p");
+      error.className = "live-error";
+      error.textContent = message;
+      box.append(error);
+    });
+  } catch (error) {
+    box.textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Check live listings";
+  }
+}
+
+/* ---------- Status bars ---------- */
+
+async function loadModelStatus() {
+  try {
+    const response = await fetch("/api/model-status");
+    const data = await response.json();
+    if (!response.ok) throw new Error();
+    modelStatus.textContent = data.available ? "Qwen connected" : "Qwen offline";
+    modelStatus.classList.toggle("ready", Boolean(data.available));
+  } catch {
+    modelStatus.textContent = "Qwen offline";
+  }
+}
+
+async function loadDataStatus() {
+  try {
+    const response = await fetch("/api/data-status");
+    const data = await response.json();
+    if (!response.ok || !data.ready) throw new Error(data.error || "Data unavailable");
+    const counts = data.counts;
+    const live = Object.entries(data.connectors || {})
+      .filter(([, on]) => on)
+      .map(([name]) => ({ nhtsa: "NHTSA", "auto.dev": "Auto.dev", serpapi: "SerpApi", ebay: "eBay", bestbuy: "Best Buy", marketcheck: "MarketCheck" }[name] || name));
+    dataNotice.textContent = `Searching ${counts.vehicles} models, ${number.format(counts.listings)} listings, and ${number.format(counts.reviews)} owner reviews${live.length ? `. Live: ${live.join(", ")}` : ""}.`;
+  } catch (error) {
+    dataNotice.textContent = error.message;
+    dataNotice.classList.add("error");
+  }
+}
+
+/* ---------- Voice input ---------- */
 
 function setupVoiceInput() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     voiceButton.disabled = true;
-    voiceButton.title = "Speech input is available in Chrome and Edge.";
-    voiceButton.querySelector("span").textContent = "Speech unavailable";
+    voiceButton.title = "Voice input works in Chrome and Edge.";
     return;
   }
 
@@ -114,8 +537,7 @@ function setupVoiceInput() {
   recognition.onstart = () => {
     voiceButton.setAttribute("aria-pressed", "true");
     voiceButton.classList.add("listening");
-    voiceButton.querySelector("span").textContent = "Stop listening";
-    voiceStatus.textContent = "Listening… Speak your vehicle request.";
+    voiceStatus.textContent = "Listening…";
   };
 
   recognition.onresult = (event) => {
@@ -130,363 +552,46 @@ function setupVoiceInput() {
 
   recognition.onerror = (event) => {
     const messages = {
-      "not-allowed": "Microphone permission was denied. Allow microphone access in Chrome and try again.",
-      "no-speech": "No speech was detected. Try again and speak after Listening appears.",
-      "audio-capture": "No microphone was found.",
-      network: "Chrome speech recognition could not reach its speech service.",
+      "not-allowed": "Microphone access is blocked. Allow it in Chrome's site settings.",
+      "no-speech": "No speech detected. Try again.",
+      "audio-capture": "No microphone found.",
+      network: "Chrome's speech service is unreachable.",
     };
     voiceStatus.hidden = false;
-    voiceStatus.textContent = messages[event.error] || `Speech recognition stopped: ${event.error}.`;
+    voiceStatus.textContent = messages[event.error] || `Voice input stopped: ${event.error}.`;
   };
 
   recognition.onend = () => {
     voiceButton.setAttribute("aria-pressed", "false");
     voiceButton.classList.remove("listening");
-    voiceButton.querySelector("span").textContent = "Speak request";
-    if (queryInput.value.trim() && !voiceStatus.textContent.includes("denied")) {
-      voiceStatus.textContent = "Speech added. Review the request, then select Find vehicles.";
+    if (queryInput.value.trim() && !voiceStatus.textContent.includes("blocked")) {
+      voiceStatus.textContent = "Check the text, then select Find cars.";
     }
   };
 }
 
-function clearOutput() {
-  statusBox.classList.remove("error");
-  notices.hidden = true;
-  notices.textContent = "";
-  summary.hidden = true;
-  summary.replaceChildren();
-  results.replaceChildren();
-}
+/* ---------- Helpers ---------- */
 
-function render(data) {
-  const candidates = data.candidates || data.recommendations || [];
-  const questions = data.clarification_questions || [];
-  renderSummary(data.parsed || data.constraints || {});
-  previousQuery = data.query || "";
-  awaitingAnswer = questions.length > 0;
-  refineControl.hidden = !awaitingAnswer;
-  const noticeText = [data.model_notice, data.data_notice].filter(Boolean).join(" ");
-  if (noticeText) {
-    notices.textContent = noticeText;
-    notices.hidden = false;
+function readableRetrieval(mode) {
+  if (!mode) return "Not used";
+  if (mode === "bm25") return "Keyword search (BM25)";
+  if (mode.startsWith("ontology_graph")) {
+    return mode.includes("MiniLM") ? "Graph paths + MiniLM" : "Graph paths + TF-IDF";
   }
-
-  if (!candidates.length) {
-    statusBox.textContent = questions.length
-      ? questions.join(" ")
-      : data.message || "No vehicles match the current request.";
-    return;
-  }
-
-  statusBox.textContent = data.match_mode === "closest_alternatives"
-    ? `No exact matches · showing ${candidates.length} closest alternatives`
-    : `${candidates.length} ranked vehicle${candidates.length === 1 ? "" : "s"}`;
-  if (questions.length) {
-    const clarification = document.createElement("span");
-    clarification.className = "mode-notice";
-    clarification.textContent = `Optional follow-up: ${questions.join(" ")}`;
-    statusBox.append(document.createElement("br"), clarification);
-  }
-  candidates.forEach((candidate, index) => renderCandidate(candidate, index, data));
+  if (mode.includes("MiniLM")) return "Vector search (MiniLM)";
+  return "Keyword search (TF-IDF)";
 }
 
-async function loadModelStatus() {
-  try {
-    const response = await fetch("/api/model-status");
-    const data = await response.json();
-    if (!response.ok) throw new Error();
-    modelStatus.textContent = data.available ? "Qwen connected" : "Standard mode";
-    modelStatus.classList.toggle("ready", Boolean(data.available));
-  } catch {
-    modelStatus.textContent = "Standard mode";
-  }
+function vehicleName(candidate) {
+  return [candidate.year, candidate.make, candidate.model, candidate.trim].filter(Boolean).join(" ") || "Vehicle";
 }
 
-function renderSummary(parsed) {
-  const entries = Object.entries(parsed).filter(([, value]) => {
-    return value !== null && value !== "" && (!Array.isArray(value) || value.length);
-  });
-  if (!entries.length) return;
-
-  const list = document.createElement("dl");
-  entries.forEach(([key, value]) => {
-    const row = document.createElement("div");
-    const term = document.createElement("dt");
-    const description = document.createElement("dd");
-    term.textContent = label(key);
-    description.textContent = valueText(value);
-    row.append(term, description);
-    list.append(row);
-  });
-  summary.append(list);
-  summary.hidden = false;
+function shorten(text, limit) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  return clean.length > limit ? `${clean.slice(0, limit - 1).trimEnd()}…` : clean;
 }
 
-function methodLine(candidate, data) {
-  const stages = data.model_stages || {};
-  const backend = (candidate.graph_paths || [])[0]?.backend;
-  const parts = [
-    `Config ${data.configuration || "C"}`,
-    `Parsing: ${stages.parsing || "rules"}`,
-    `Aspects: ${stages.review_extraction || "lexicon"}`,
-    `Retrieval: ${candidate.retrieval_mode || "n/a"}`,
-    backend ? `Graph: ${backend}` : "Graph: off",
-    `Summaries: ${stages.summaries || "templates"}`,
-  ];
-  return parts.join(" · ");
-}
-
-function renderCandidate(candidate, index, data = {}) {
-  const node = template.content.cloneNode(true);
-  const vehicle = candidate.vehicle || candidate;
-  const listing = candidate.listing || vehicle.listing || {};
-  const safety = candidate.safety || vehicle.safety || {};
-  const evidence = candidate.evidence || [];
-  const evidenceById = new Map(evidence.map((item) => [item.id, item]));
-
-  node.querySelector(".rank").textContent = candidate.rank || index + 1;
-  node.querySelector(".vehicle-name").textContent = vehicleName(vehicle);
-  node.querySelector(".score").textContent = formatScore(candidate.score);
-  node.querySelector(".method-line").textContent = methodLine(candidate, data);
-
-  const facts = node.querySelector(".facts");
-  addFact(facts, "Price", listing.price ?? vehicle.price, money);
-  addFact(facts, "Mileage", listing.mileage ?? vehicle.mileage, number, " mi");
-  addFact(facts, "Body", vehicle.body_style);
-  addFact(facts, "Drivetrain", vehicle.drivetrain);
-  addFact(facts, "Location", candidate.location);
-  addFact(facts, "Source", candidate.listing_source);
-  addFact(facts, "Record", dataModeLabel(candidate.listing_data_mode));
-  addFact(facts, "Evidence", candidate.tier === "complete" ? "Complete" : "Needs review");
-
-  renderAspectBars(node.querySelector(".aspect-bars"), candidate.score_components || {});
-
-  const sections = node.querySelector(".sections");
-  addSection(sections, "Why it fits", candidate.pros || candidate.reasons || candidate.highlights || [], evidenceById);
-  addSection(sections, "Unmet constraints", candidate.constraint_violations || [], evidenceById);
-  addSection(sections, "Evidence", candidate.review_evidence || evidence, evidenceById);
-  addSection(sections, "Recall cautions", candidate.cautions || safety.cautions || safety.recalls || [], evidenceById);
-  addSection(sections, "Pros and cons by aspect", bundleItems(candidate.aspect_bundles || []), evidenceById);
-  addSection(sections, "Graph paths", candidate.graph_paths || [], evidenceById);
-  addSection(
-    sections,
-    "Retrieved passages",
-    (candidate.retrieved_passages || []).slice(0, 3).map((item) => ({
-      text: `${item.text.slice(0, 180)}${item.text.length > 180 ? "…" : ""} (score ${item.score.toFixed(2)})`,
-      evidence_ids: [item.evidence_id],
-    })),
-    evidenceById,
-  );
-  addSection(sections, "Missing evidence", candidate.missing_evidence || [], evidenceById);
-
-  const source = node.querySelector(".source-link");
-  const listingEvidence = (candidate.evidence || []).find((item) => item.type === "listing");
-  const url = listing.url || listing.source_url || candidate.source_url || listingEvidence?.url;
-  if (url) {
-    source.href = url;
-    source.textContent = candidate.listing_data_mode === "live"
-      ? "View live listing"
-      : "View source snapshot";
-  } else {
-    source.remove();
-  }
-
-  const liveButton = node.querySelector(".live-check");
-  const liveBox = node.querySelector(".live-results");
-  liveButton.addEventListener("click", () => liveCheck(candidate.id, liveButton, liveBox));
-
-  results.append(node);
-}
-
-function bundleItems(bundles) {
-  const items = [];
-  bundles.forEach((bundle) => {
-    const name = label(bundle.aspect);
-    if (bundle.positive) items.push({ text: `${name} +: “${bundle.positive.text}”`, evidence_ids: bundle.positive.evidence_ids });
-    if (bundle.negative) items.push({ text: `${name} −: “${bundle.negative.text}”`, evidence_ids: bundle.negative.evidence_ids });
-  });
-  return items;
-}
-
-async function liveCheck(vehicleId, button, box) {
-  button.disabled = true;
-  button.textContent = "Checking marketplaces…";
-  box.hidden = false;
-  box.replaceChildren();
-  try {
-    const response = await fetch("/api/live-check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vehicle_id: vehicleId }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Live check failed.");
-    const heading = document.createElement("p");
-    heading.className = "live-heading";
-    const when = new Date(data.checked_at).toLocaleTimeString();
-    heading.textContent = data.message
-      || `Checked ${data.sources.join(", ")} at ${when} · ${data.listings.length} listing(s)`;
-    box.append(heading);
-    const list = document.createElement("ul");
-    data.listings.forEach((item) => {
-      const entry = document.createElement("li");
-      const price = item.price != null ? money.format(item.price) : "price n/a";
-      const miles = item.mileage != null ? ` · ${number.format(item.mileage)} mi` : "";
-      entry.append(`${item.source}: ${item.title} — ${price}${miles} `);
-      const link = document.createElement("a");
-      link.href = item.url;
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.textContent = "Open";
-      entry.append(link);
-      list.append(entry);
-    });
-    box.append(list);
-    (data.errors || []).forEach((message) => {
-      const error = document.createElement("p");
-      error.className = "live-error";
-      error.textContent = message;
-      box.append(error);
-    });
-  } catch (error) {
-    box.textContent = error.message;
-  } finally {
-    button.disabled = false;
-    button.textContent = "Check live listings now";
-  }
-}
-
-function renderAspectBars(container, components) {
-  const labels = {
-    safety: "Safety",
-    reliability: "Reliability",
-    maintenance: "Maintenance",
-    fuel_economy: "Fuel economy",
-    cargo: "Cargo",
-    snow: "Snow",
-  };
-  Object.entries(labels).forEach(([key, name]) => {
-    const value = components[key];
-    if (value === null || value === undefined) return;
-    const row = document.createElement("div");
-    row.className = "aspect-row";
-    const labelNode = document.createElement("span");
-    labelNode.textContent = name;
-    const meter = document.createElement("span");
-    meter.className = "aspect-meter";
-    const fill = document.createElement("span");
-    fill.style.width = `${Math.max(0, Math.min(1, Number(value))) * 100}%`;
-    meter.append(fill);
-    row.append(labelNode, meter);
-    container.append(row);
-  });
-}
-
-function dataModeLabel(value) {
-  if (value === "live") return "Live";
-  if (value === "live_capture") return "Live capture";
-  if (value === "frozen_snapshot") return "Frozen snapshot";
-  return value || "Unknown";
-}
-
-async function loadDataStatus() {
-  try {
-    const response = await fetch("/api/data-status");
-    const data = await response.json();
-    if (!response.ok || !data.ready) throw new Error(data.error || "Data unavailable");
-    const counts = data.counts;
-    const live = Object.entries(data.connectors || {})
-      .filter(([, on]) => on)
-      .map(([name]) => name)
-      .join(", ");
-    dataNotice.textContent = `${counts.vehicles} vehicle variants · ${number.format(counts.listings)} listings · ${number.format(counts.reviews)} reviews · ${counts.recalls} recalls${live ? ` · Live sources: ${live}` : ""}`;
-  } catch (error) {
-    dataNotice.textContent = error.message;
-    dataNotice.classList.add("error");
-  }
-}
-
-function addFact(container, name, value, formatter, suffix = "") {
-  if (value === undefined || value === null || value === "") return;
-  const item = document.createElement("span");
-  item.className = "fact";
-  const formatted = formatter ? formatter.format(Number(value)) : String(value);
-  item.textContent = `${name}: ${formatted}${suffix}`;
-  container.append(item);
-}
-
-function addSection(container, title, content, evidenceById = new Map()) {
-  const items = Array.isArray(content) ? content : content ? [content] : [];
-  if (!items.length) return;
-
-  const section = document.createElement("section");
-  section.className = "section";
-  const heading = document.createElement("h3");
-  heading.textContent = title;
-  section.append(heading);
-
-  const list = document.createElement("ul");
-  items.slice(0, 4).forEach((item) => {
-    const entry = document.createElement("li");
-    entry.append(document.createTextNode(evidenceText(item)));
-    if (item && typeof item === "object" && item.url) {
-      const link = document.createElement("a");
-      link.href = item.url;
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.textContent = "Source";
-      entry.append(" ", link);
-    }
-    const citations = item && typeof item === "object" && Array.isArray(item.evidence_ids)
-      ? [...new Set(item.evidence_ids)]
-        .map((id) => evidenceById.get(id))
-        .filter(Boolean)
-      : [];
-    citations.forEach((evidence, index) => {
-      const link = document.createElement("a");
-      link.className = "citation-link";
-      link.href = evidence.url;
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.textContent = citations.length === 1 ? "Cited source" : `Cited source ${index + 1}`;
-      link.title = `${evidence.source}: ${evidence.text}`;
-      entry.append(" ", link);
-    });
-    list.append(entry);
-  });
-  section.append(list);
-  container.append(section);
-}
-
-function evidenceText(item) {
-  if (typeof item === "string") return item;
-  const text = item.text || item.quote || item.description || item.title || JSON.stringify(item);
-  const source = item.source ? ` — ${item.source}` : "";
-  const indirect = item.indirect ? " (indirect)" : "";
-  return `${text}${source}${indirect}`;
-}
-
-function vehicleName(vehicle) {
-  const values = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean);
-  return values.join(" ") || vehicle.name || "Vehicle";
-}
-
-function formatScore(value) {
-  if (value === undefined || value === null) return "";
-  const score = Number(value);
-  return score <= 1 ? `${Math.round(score * 100)}% match` : `${score.toFixed(1)} score`;
-}
-
-function valueText(value) {
-  if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "object") {
-    return Object.entries(value)
-      .map(([key, item]) => `${label(key)} ${item}`)
-      .join(", ");
-  }
-  return String(value);
-}
-
-function label(key) {
-  return key.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+function capitalize(value) {
+  const text = String(value || "").replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

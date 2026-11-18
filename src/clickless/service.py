@@ -131,11 +131,19 @@ def _candidate(
     stars = vehicle["safety"]["ncap_stars"]
     safety_text = f"NHTSA reports a {stars}-star safety rating."
     pros = [{"text": safety_text, "evidence_ids": [safety_id]}] if stars else []
-    if exact_reviews:
+    positive_ids = {
+        review["source_id"]
+        for review in vehicle.get("reviews", [])
+        if review.get("match_type") == "exact_year"
+        and any(item.get("polarity") == "positive" for item in review.get("aspect_assertions", []))
+        and not any(item.get("polarity") == "negative" for item in review.get("aspect_assertions", []))
+    }
+    positive_review = next((item for item in exact_reviews if item["id"] in positive_ids), None)
+    if positive_review:
         pros.append(
             {
-                "text": exact_reviews[0]["text"],
-                "evidence_ids": [exact_reviews[0]["id"]],
+                "text": positive_review["text"],
+                "evidence_ids": [positive_review["id"]],
             }
         )
     recall_items = [item for item in evidence if item["type"] == "recall"]
