@@ -8,6 +8,19 @@ from .models import Constraints
 CANONICAL_ASPECTS = ("reliability", "maintenance", "fuel_economy", "cargo")
 
 
+# Many listings (Craigslist especially) label all-wheel-drive SUVs "4WD", so an
+# AWD request also accepts 4WD vehicles. Every other drivetrain must match exactly.
+DRIVETRAIN_EQUIVALENTS = {"AWD": {"AWD", "4WD"}}
+
+
+def drivetrain_matches(actual: Any, wanted: Any) -> bool:
+    if not wanted:
+        return True
+    actual_key = str(actual or "").upper()
+    wanted_key = str(wanted).upper()
+    return actual_key in DRIVETRAIN_EQUIVALENTS.get(wanted_key, {wanted_key})
+
+
 def select_best_listing(
     vehicle: dict[str, Any],
     constraints: Constraints,
@@ -85,7 +98,7 @@ def filter_vehicles(
             continue
         if constraints.body_style and vehicle["body_style"] != constraints.body_style:
             continue
-        if constraints.drivetrain and vehicle["drivetrain"] != constraints.drivetrain:
+        if not drivetrain_matches(vehicle["drivetrain"], constraints.drivetrain):
             continue
         if (
             constraints.make
@@ -267,7 +280,7 @@ def constraint_violations(
             f"Body style is {vehicle['body_style'].upper()}, not {constraints.body_style.upper()}."
         )
         penalty += 1.0
-    if constraints.drivetrain and vehicle["drivetrain"] != constraints.drivetrain:
+    if not drivetrain_matches(vehicle["drivetrain"], constraints.drivetrain):
         violations.append(
             f"Drivetrain is {vehicle['drivetrain']}, not {constraints.drivetrain}."
         )

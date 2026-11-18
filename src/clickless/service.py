@@ -483,7 +483,7 @@ def recommend(
                     for eid in path.get("evidence_ids", [])
                 ):
                     graph_paths.append(path)
-            candidate["graph_paths"] = graph_paths
+            candidate["graph_paths"] = _tidy_paths(graph_paths, selected_vehicle, backend)
             try:
                 candidate["retrieved_passages"] = retrieve_passages(
                     query, candidate["evidence"], "dense"
@@ -506,6 +506,11 @@ def recommend(
             model_stages["summaries"] = "qwen"
         except (QwenError, TypeError, ValueError, KeyError) as error:
             model_notices.append(f"Recommendation summaries used stored evidence. {error}")
+    if (
+        str(ranking_constraints.drivetrain or "").upper() == "AWD"
+        and any(str(v.get("drivetrain") or "").upper() == "4WD" for v in selected_vehicles)
+    ):
+        model_notices.append("AWD search also includes 4WD vehicles, since many sellers list AWD SUVs as 4WD.")
     status = "ok" if match_mode == "exact" else "closest_alternatives"
     if questions:
         status = "needs_clarification"
@@ -581,6 +586,45 @@ def _top_distinct(ranked: list[tuple[Any, ...]], limit: int) -> list[tuple[Any, 
     return selected
 
 
+def _tidy_paths(
+    paths: list[dict[str, Any]], vehicle: dict[str, Any], backend: str
+) -> list[dict[str, Any]]:
+    """Keep only the listing shown on the card and drop repeated lines."""
+    listing = vehicle.get("listing") or {}
+    listing_source = listing.get("source_id")
+    had_listing = any(path.get("kind") == "listing" for path in paths)
+    tidy: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for path in paths:
+        if (
+            path.get("kind") == "listing"
+            and listing_source
+            and listing_source not in path.get("evidence_ids", [])
+        ):
+            continue
+        key = str(path.get("text") or "")
+        if key in seen:
+            continue
+        seen.add(key)
+        tidy.append(path)
+    if had_listing and listing_source and not any(p.get("kind") == "listing" for p in tidy):
+        tidy.insert(
+            0,
+            {
+                "kind": "listing",
+                "label": "Listing",
+                "component": None,
+                "node_ids": [vehicle["id"]],
+                "relations": ["HAS_LISTING"],
+                "evidence_ids": [listing_source],
+                "text": f"Listed at ${listing['price']:,} with {listing['mileage']:,} miles.",
+                "indirect": False,
+                "backend": backend,
+            },
+        )
+    return tidy
+
+
 def _raw_review_paths(candidate: dict[str, Any], backend: str) -> list[dict[str, Any]]:
     return [
         {
@@ -590,7 +634,7 @@ def _raw_review_paths(candidate: dict[str, Any], backend: str) -> list[dict[str,
             "node_ids": [candidate["id"], item["id"]],
             "relations": ["HAS_REVIEW"],
             "evidence_ids": [item["id"]],
-            "text": "Owner review retrieved without aspect-assertion nodes.",
+            "text": "Owner review, read as plain text (no aspect labels).",
             "indirect": item["indirect"],
             "backend": backend,
         }
@@ -608,7 +652,7 @@ def _lineage_paths(candidate: dict[str, Any], backend: str) -> list[dict[str, An
             "node_ids": [candidate["id"], item["id"]],
             "relations": ["SHARES_GENERATION", "HAS_REVIEW"],
             "evidence_ids": [item["id"]],
-            "text": "Sibling-variant review shown as indirect lineage evidence and excluded from ranking.",
+            "text": "Review of a same-generation model year. Shown for context, not used in the score.",
             "indirect": True,
             "backend": backend,
         }

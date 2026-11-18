@@ -13,7 +13,8 @@ from typing import Any
 from clickless.config import settings
 from clickless.data import load_catalog
 from clickless.evaluation.metrics import citation_coverage
-from clickless.evaluation.scenarios import default_scenarios
+from clickless.evaluation.scenarios import default_scenarios, unanswerable_scenarios
+from clickless.ranking import drivetrain_matches
 from clickless.service import recommend
 
 
@@ -48,9 +49,8 @@ def _candidate_satisfies_constraints(
         if str(candidate.get("body_style") or "").casefold() != str(body_style).casefold():
             return False
     drivetrain = expected.get("drivetrain")
-    if drivetrain:
-        if str(candidate.get("drivetrain") or "").casefold() != str(drivetrain).casefold():
-            return False
+    if drivetrain and not drivetrain_matches(candidate.get("drivetrain"), drivetrain):
+        return False
     make = expected.get("make")
     if make:
         if str(candidate.get("make") or "").casefold() != str(make).casefold():
@@ -70,6 +70,12 @@ def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
         for record in records
         if record.get("abstained_correctly") is not None
     ]
+    answerable_records = [record for record in records if record.get("answerable", True)]
+    shown_rates = [
+        float(record["shown_cars_meet_limits"])
+        for record in answerable_records
+        if record.get("shown_cars_meet_limits") is not None
+    ]
     retentions = [
         float(record["cohort_retention"])
         for record in records
@@ -86,6 +92,21 @@ def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "gold_constraint_satisfaction": (
             sum(gold_checks) / len(gold_checks) if gold_checks else None
+        ),
+        # Answerable requests only: did the system find exact matches, and what
+        # share of the cars it showed meet every hard limit in the gold label?
+        "exact_match_rate": (
+            sum(bool(record["constraint_satisfied"]) for record in answerable_records)
+            / len(answerable_records)
+            if answerable_records
+            else None
+        ),
+        "shown_cars_meet_limits": mean(shown_rates) if shown_rates else None,
+        "false_abstention_rate": (
+            sum(not bool(record["constraint_satisfied"]) for record in answerable_records)
+            / len(answerable_records)
+            if answerable_records
+            else None
         ),
         "abstention_accuracy": (
             sum(abstention_checks) / len(abstention_checks)
@@ -108,7 +129,13 @@ def run(
     scenarios: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
-    selected_scenarios = scenarios if scenarios is not None else default_scenarios()
+    # 50 benchmark requests (15 tuning, 35 held out) plus 10 extra impossible
+    # requests whose correct behaviour is to say nothing matches.
+    selected_scenarios = (
+        scenarios
+        if scenarios is not None
+        else default_scenarios() + unanswerable_scenarios()
+    )
     records = []
     for scenario in selected_scenarios:
         answerable = bool(scenario.get("answerable", True))
@@ -137,6 +164,15 @@ def run(
                 if answerable
                 else None
             )
+            shown_rate = (
+                sum(
+                    _candidate_satisfies_constraints(candidate, expected)
+                    for candidate in candidates
+                )
+                / len(candidates)
+                if answerable and candidates
+                else None
+            )
             abstained = (
                 (result.get("match_mode") == "closest_alternatives")
                 if not answerable
@@ -154,6 +190,7 @@ def run(
                     "citation_coverage": citation_coverage(candidates),
                     "constraint_satisfied": exact_match,
                     "gold_constraint_satisfied": gold_satisfied,
+                    "shown_cars_meet_limits": shown_rate,
                     "abstained_correctly": abstained,
                     "cohort_retention": result.get("cohort_retention"),
                     "candidate_ids": [item["id"] for item in candidates],

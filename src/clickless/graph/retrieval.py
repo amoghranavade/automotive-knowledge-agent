@@ -355,12 +355,7 @@ def _build_alignments(
                 "node_ids": node_ids,
                 "relations": relations,
                 "evidence_ids": evidence_ids,
-                "text": (
-                    f"{', '.join(kind.replace('_', ' ') for kind in kinds)} records "
-                    f"align on the {component.replace('_', ' ')} subsystem "
-                    f"({len(evidence_ids)} linked record(s)). This is related maintenance "
-                    "context, not proof of causation, fitment, or repair cost."
-                ),
+                "text": _alignment_text(kinds, component, len(evidence_ids)),
                 "indirect": False,
             }
         )
@@ -462,9 +457,8 @@ def _generation_lineage_paths(
                         ],
                         "evidence_ids": [source_id] if source_id else [],
                         "text": (
-                            f"Indirect generation lineage via {sibling_label} "
-                            f"({polarity} {aspect_label}{snippet}). "
-                            "Excluded from ranking scores."
+                            f"A {sibling_label} owner (same generation, not used in the score) "
+                            f"{_opinion_phrase(polarity, aspect_label)}{snippet or '.'}"
                         ),
                         "indirect": True,
                     }
@@ -815,7 +809,6 @@ def _review_paths(
             for component_edge in comp_edges:
                 component_node = nodes[component_edge["end"]]
                 component = str(component_node["properties"].get("name", "unknown"))
-                component_label = component.replace("_", " ")
                 snippet = f': "{span}"' if span else ""
                 paths.append(
                     {
@@ -837,10 +830,7 @@ def _review_paths(
                             component_edge["relation"],
                         ],
                         "evidence_ids": [source_id] if source_id else [],
-                        "text": (
-                            f"Owner review {polarity} {aspect_label} assertion "
-                            f"about the {component_label} subsystem{snippet}."
-                        ),
+                        "text": f"Owner {_opinion_phrase(polarity, aspect_label)}{snippet or '.'}",
                         "indirect": indirect,
                     }
                 )
@@ -857,7 +847,7 @@ def _review_paths(
                     "node_ids": [vehicle_id, review_id, assertion_id],
                     "relations": [first_edge["relation"], edge["relation"]],
                     "evidence_ids": [source_id] if source_id else [],
-                    "text": f"Owner review {polarity} {aspect_label} assertion{snippet}.",
+                    "text": f"Owner {_opinion_phrase(polarity, aspect_label)}{snippet or '.'}",
                     "indirect": indirect,
                 }
             )
@@ -909,11 +899,50 @@ def _path_text(kind: str, properties: dict[str, Any], component: str | None) -> 
             return "NHTSA safety record (no crash-test scores)."
         return f"NHTSA crash tests: {stars} stars" + (" on average." if basis == "test_average" else " overall.")
     if kind == "recall":
-        return "Recall" + (f" affecting the {part}." if part != "unknown" else ".")
+        if part == "unknown":
+            part = _plain_component(properties.get("component"))
+        campaign = str(properties.get("campaign_number") or "").strip()
+        label = f"Recall {campaign}" if campaign else "Recall"
+        return label + (f" affecting the {part}." if part else ".")
     if kind == "review":
         return "Owner review" + (f" that mentions the {part}." if component and part != "unknown" else ".")
     fit = "fit confirmed" if properties.get("verified_fitment") else "fit not confirmed"
     return "Replacement part" + (f" for the {part}" if part != "unknown" else "") + f" ({fit})."
+
+
+_SOURCE_NAMES = {"recall": "Recalls", "review": "owner reviews", "product": "parts listings"}
+
+
+def _alignment_text(kinds: list[str], component: str, count: int) -> str:
+    names = [_SOURCE_NAMES.get(kind, kind.replace("_", " ")) for kind in kinds]
+    if len(names) > 1:
+        joined = ", ".join(names[:-1]) + " and " + names[-1]
+    else:
+        joined = names[0] if names else "Records"
+    joined = joined[0].upper() + joined[1:]
+    verb = "both mention" if len(names) == 2 else "all mention"
+    return (
+        f"{joined} {verb} the {component.replace('_', ' ')} ({count} records). "
+        "Related, not proof of a problem."
+    )
+
+
+def _opinion_phrase(polarity: str, aspect_label: str) -> str:
+    if polarity == "positive":
+        return f"liked the {aspect_label}"
+    if polarity == "negative":
+        return f"complained about the {aspect_label}"
+    if polarity == "mixed":
+        return f"had mixed views on the {aspect_label}"
+    return f"mentioned the {aspect_label}"
+
+
+def _plain_component(raw: Any) -> str:
+    """'AIR BAGS:FRONTAL:DRIVER SIDE' -> 'air bags'."""
+    text = str(raw or "").split(":")[0].strip().lower()
+    if text == "equipment":
+        return "add-on equipment"
+    return "" if text == "unknown" else text
 
 
 def _unique(values: Any) -> list[str]:

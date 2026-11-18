@@ -361,6 +361,7 @@ def unanswerable_scenarios() -> list[dict[str, Any]]:
         {
             "id": f"unanswerable-{index + 1:02d}",
             "split": "unanswerable",
+            "category": "impossible",
             "query": query,
             "answerable": False,
             "expected_constraints": {},

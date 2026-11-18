@@ -170,7 +170,7 @@ function renderSummary(parsed) {
   const chips = [];
   if (parsed.max_price) chips.push(`Under ${money.format(parsed.max_price)}`);
   if (parsed.body_style) chips.push(parsed.body_style === "suv" ? "SUV" : capitalize(parsed.body_style));
-  if (parsed.drivetrain) chips.push(parsed.drivetrain);
+  if (parsed.drivetrain) chips.push(parsed.drivetrain === "AWD" ? "AWD or 4WD" : parsed.drivetrain);
   if (parsed.max_mileage) chips.push(`Under ${number.format(parsed.max_mileage)} mi`);
   if (parsed.min_year) chips.push(`${parsed.min_year} or newer`);
   const priorities = Object.entries(parsed.preferences || {})
@@ -614,6 +614,7 @@ function friendlyNotice(text) {
   if (/Qwen unavailable|rule-based parsing/i.test(text)) notes.push("The AI helper is offline, so keyword rules read your request.");
   if (/summaries used stored evidence/i.test(text)) notes.push("Summaries come from templates because the AI helper didn't respond.");
   if (/VADER requires/i.test(text)) notes.push("The positive/negative word list isn't installed.");
+  if (/AWD search also includes 4WD/i.test(text)) notes.push("Showing 4WD cars too, since many sellers list AWD SUVs as 4WD.");
   return notes.length ? notes.join(" ") : text;
 }
 

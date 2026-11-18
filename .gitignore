@@ -16,3 +16,26 @@ data/processed/
 data/neo4j/
 models/
 evaluation/output/
+
+results/
+evaluation/run-*/
+evaluation/log-*.txt
+*.zip
+*.patch
+*.mov
+
+# local evaluation runs, logs and results
+evaluation/
+results/
+*.log
+*.zip
+# credentials
+.env.*
+!.env.example
+kaggle.json
+*.pem
+# recordings and editor files
+*.mov
+*.mp4
+.vscode/
+.idea/
