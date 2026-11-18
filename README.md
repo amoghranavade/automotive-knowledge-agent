@@ -206,6 +206,16 @@ clickless-analyze-evaluation
 
 Add `--use-model` to `clickless-analyze-evaluation` to score Qwen ABSA against the annotated test sentences.
 
+### Latest results
+
+The current benchmark results, with the A–E ablation, data health, component metrics and per-request outcomes, are in [`docs/evaluation/README.md`](docs/evaluation/README.md). To refresh them after a new run:
+
+```bash
+python scripts/summarize_evaluation.py evaluation/<run-folder>
+```
+
+The script writes only aggregate metrics, request text and car-model IDs. Raw outputs such as `system_results.jsonl` and the judging sheets contain listing links and seller locations, so they stay out of Git.
+
 Run component audits (50-query slot-parser benchmark, 100-link graph audit sheet, SHACL validation, and web-extraction audit):
 
 ```bash

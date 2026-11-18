@@ -1,0 +1,6 @@
+configuration,description,runs,exact_match_rate,shown_cars_meet_limits,abstention_accuracy,citation_coverage,mean_cohort_retention,same_top3_as_C,answerable_requests,median_latency_s,p95_latency_s
+A,Keyword search (BM25) + VADER,60,1.0,1.0,1.0,1.0,0.6703,36,47,0.1371,0.2184
+B,"Meaning search (MiniLM), no graph",60,1.0,1.0,1.0,1.0,0.6703,47,47,0.4493,0.6738
+C,Full system: graph paths + review aspects,60,1.0,1.0,1.0,1.0,0.6703,47,47,0.4489,0.7044
+D,Graph with raw review text,60,1.0,1.0,1.0,1.0,0.6703,47,47,0.4519,0.7131
+E,C without sentiment in the score,60,1.0,1.0,1.0,1.0,0.9269,14,47,0.4524,0.6949

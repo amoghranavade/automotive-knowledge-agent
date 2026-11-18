@@ -25,7 +25,7 @@ evaluation/log-*.txt
 *.mov
 
 # local evaluation runs, logs and results
-evaluation/
+/evaluation/
 results/
 *.log
 *.zip
